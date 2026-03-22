@@ -15,9 +15,6 @@ venv/
 node_modules/
 frontend/dist/
 
-# Database (rebuilt from seed)
-backend/db/pricing.db
-
 # OS
 .DS_Store
 Thumbs.db
