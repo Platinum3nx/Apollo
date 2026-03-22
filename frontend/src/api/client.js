@@ -7,9 +7,12 @@ const api = axios.create({
   timeout: 120000, // 2 min timeout for Gemini calls
 });
 
-export async function analyzeBill(file, state = 'VA', facilityType = 'non_facility') {
+export async function analyzeBill(fileOrFiles, state = 'VA', facilityType = 'non_facility') {
+  const files = Array.isArray(fileOrFiles) ? fileOrFiles : [fileOrFiles];
   const formData = new FormData();
-  formData.append('file', file);
+  files.filter(Boolean).forEach((file) => {
+    formData.append('files', file);
+  });
   formData.append('state', state);
   formData.append('facility_type', facilityType);
 

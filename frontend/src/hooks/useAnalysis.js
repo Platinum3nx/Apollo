@@ -1,33 +1,60 @@
-import { useState, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { analyzeBill } from '../api/client';
 
+function buildPreviewItem(selectedFile, index) {
+  const isBlob = typeof Blob !== 'undefined' && selectedFile instanceof Blob;
+  const isImage = isBlob && selectedFile.type?.startsWith('image/');
+
+  return {
+    id: `${selectedFile.name || 'file'}-${selectedFile.lastModified || 'mock'}-${index}`,
+    kind: isImage ? 'image' : selectedFile.type === 'application/pdf' ? 'pdf' : 'file',
+    name: selectedFile.name || `File ${index + 1}`,
+    size: typeof selectedFile.size === 'number' ? selectedFile.size : null,
+    previewUrl: isImage ? URL.createObjectURL(selectedFile) : null,
+  };
+}
+
 export function useAnalysis() {
-  const [file, setFile] = useState(null);
-  const [preview, setPreview] = useState(null);
+  const [files, setFiles] = useState([]);
+  const [previews, setPreviews] = useState([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [results, setResults] = useState(null);
   const [error, setError] = useState(null);
   const [state, setState] = useState('VA');
   const [facilityType, setFacilityType] = useState('non_facility');
 
-  const handleFileSelect = useCallback((selectedFile) => {
-    setFile(selectedFile);
+  useEffect(() => {
+    return () => {
+      previews.forEach((preview) => {
+        if (preview.previewUrl) {
+          URL.revokeObjectURL(preview.previewUrl);
+        }
+      });
+    };
+  }, [previews]);
+
+  const handleFileSelect = useCallback((selectedInput) => {
+    const selectedFiles = Array.isArray(selectedInput)
+      ? selectedInput.filter(Boolean)
+      : selectedInput
+        ? [selectedInput]
+        : [];
+
+    setFiles(selectedFiles);
     setError(null);
     setResults(null);
-
-    if (selectedFile && selectedFile.type?.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onload = (e) => setPreview(e.target.result);
-      reader.readAsDataURL(selectedFile);
-    } else {
-      setPreview(null);
-    }
+    setPreviews(selectedFiles.map(buildPreviewItem));
   }, []);
 
-  const analyze = useCallback(async (fileToAnalyze, isMock = false, mockId = null) => {
-    const targetFile = fileToAnalyze || file;
-    if (!targetFile && !isMock) {
-      setError('Please select a file to analyze.');
+  const analyze = useCallback(async (filesToAnalyze, isMock = false, mockId = null) => {
+    const targetFiles = Array.isArray(filesToAnalyze)
+      ? filesToAnalyze
+      : filesToAnalyze
+        ? [filesToAnalyze]
+        : files;
+
+    if (targetFiles.length === 0 && !isMock) {
+      setError('Please select at least one file to analyze.');
       return;
     }
 
@@ -46,7 +73,7 @@ export function useAnalysis() {
         const data = await response.json();
         setResults(data);
       } else {
-        const data = await analyzeBill(targetFile, state, facilityType);
+        const data = await analyzeBill(targetFiles, state, facilityType);
         setResults(data);
       }
     } catch (err) {
@@ -55,19 +82,19 @@ export function useAnalysis() {
     } finally {
       setIsAnalyzing(false);
     }
-  }, [file, state, facilityType]);
+  }, [files, state, facilityType]);
 
   const reset = useCallback(() => {
-    setFile(null);
-    setPreview(null);
+    setFiles([]);
+    setPreviews([]);
     setIsAnalyzing(false);
     setResults(null);
     setError(null);
   }, []);
 
   return {
-    file,
-    preview,
+    files,
+    previews,
     isAnalyzing,
     results,
     error,

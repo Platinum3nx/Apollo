@@ -14,16 +14,28 @@ const US_STATES = [
   'VA','WA','WV','WI','WY','DC'
 ];
 
-export default function UploadScreen({ onFileSelect, onAnalyze, file, preview, error, state, setState, facilityType, setFacilityType }) {
+function formatFileSize(size) {
+  if (!size) {
+    return null;
+  }
+
+  if (size >= 1024 * 1024) {
+    return `${(size / 1024 / 1024).toFixed(2)} MB`;
+  }
+
+  return `${Math.max(size / 1024, 0.1).toFixed(1)} KB`;
+}
+
+export default function UploadScreen({ onFileSelect, onAnalyze, files, previews, error, state, setState, facilityType, setFacilityType }) {
   const inputRef = useRef(null);
   const [isDragActive, setIsDragActive] = useState(false);
 
   const handleDrop = useCallback((e) => {
     e.preventDefault();
     setIsDragActive(false);
-    const dropped = e.dataTransfer.files[0];
-    if (dropped) {
-      onFileSelect(dropped);
+    const droppedFiles = Array.from(e.dataTransfer.files || []);
+    if (droppedFiles.length > 0) {
+      onFileSelect(droppedFiles);
     }
   }, [onFileSelect]);
 
@@ -38,10 +50,11 @@ export default function UploadScreen({ onFileSelect, onAnalyze, file, preview, e
   }, []);
 
   const handleFileInput = useCallback((e) => {
-    const selected = e.target.files[0];
-    if (selected) {
-      onFileSelect(selected);
+    const selectedFiles = Array.from(e.target.files || []);
+    if (selectedFiles.length > 0) {
+      onFileSelect(selectedFiles);
     }
+    e.target.value = '';
   }, [onFileSelect]);
 
   const handleSampleClick = useCallback(async (sample) => {
@@ -55,6 +68,27 @@ export default function UploadScreen({ onFileSelect, onAnalyze, file, preview, e
     } catch {
       // Fallback if image fails to load during offline mode
       onFileSelect({ name: `${sample.label} (Mock)`, isMock: true, mockId: sample.id });
+    }
+  }, [onFileSelect]);
+
+  const handleAnalyzeClick = useCallback((e) => {
+    e.stopPropagation();
+
+    const hasMockSelection = files.length === 1 && files[0]?.isMock;
+    if (hasMockSelection) {
+      onAnalyze(files[0], true, files[0].mockId);
+      return;
+    }
+
+    onAnalyze(files);
+  }, [files, onAnalyze]);
+
+  const handleClearSelection = useCallback((e) => {
+    e.stopPropagation();
+    onFileSelect(null);
+
+    if (inputRef.current) {
+      inputRef.current.value = '';
     }
   }, [onFileSelect]);
 
@@ -114,43 +148,57 @@ export default function UploadScreen({ onFileSelect, onAnalyze, file, preview, e
               ref={inputRef}
               type="file"
               accept="image/png,image/jpeg,image/jpg,application/pdf"
+              multiple
               onChange={handleFileInput}
               className="hidden"
             />
-            {file ? (
+            {files.length > 0 ? (
               <div className="py-2">
-                {preview ? (
-                  <img src={preview} alt="Bill preview" className="max-h-48 mx-auto rounded-lg mb-4 shadow-sm" />
-                ) : (
-                  <div className="w-20 h-28 mx-auto bg-blue-50 border-2 border-primary/20 rounded-lg flex items-center justify-center mb-4">
-                    <span className="font-bold text-primary/60 text-sm">PDF / DOC</span>
-                  </div>
-                )}
-                <p className="text-sm font-medium text-text">{file?.name}</p>
-                {file?.size && <p className="text-xs text-text-light mt-1">{(file.size / 1024 / 1024).toFixed(2)} MB</p>}
+                <p className="text-sm font-medium text-text mb-4">
+                  {files.length === 1 ? '1 file selected' : `${files.length} files selected`}
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2 text-left">
+                  {previews.map((preview) => (
+                    <div key={preview.id} className="overflow-hidden rounded-xl border border-border bg-white shadow-sm">
+                      {preview.kind === 'image' && preview.previewUrl ? (
+                        <img
+                          src={preview.previewUrl}
+                          alt={preview.name}
+                          className="h-36 w-full object-cover"
+                        />
+                      ) : (
+                        <div className="h-36 w-full bg-blue-50 flex flex-col items-center justify-center text-primary">
+                          <span className="text-xs font-semibold tracking-[0.2em] uppercase">
+                            {preview.kind === 'pdf' ? 'PDF' : 'File'}
+                          </span>
+                          <span className="mt-2 text-3xl font-bold opacity-70">
+                            {preview.kind === 'pdf' ? 'PDF' : 'DOC'}
+                          </span>
+                        </div>
+                      )}
+                      <div className="p-3">
+                        <p className="text-sm font-medium text-text truncate">{preview.name}</p>
+                        <p className="text-xs text-text-light mt-1">
+                          {preview.kind === 'pdf' ? 'PDF document' : preview.kind === 'image' ? 'Image file' : 'Uploaded file'}
+                          {preview.size ? ` • ${formatFileSize(preview.size)}` : ''}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
                 
                 <div className="mt-8 flex flex-col gap-3 max-w-sm mx-auto">
                   <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (file?.isMock) {
-                        onAnalyze(file, true, file.mockId);
-                      } else {
-                        onAnalyze(file);
-                      }
-                    }}
+                    onClick={handleAnalyzeClick}
                     className="w-full bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-6 rounded-xl shadow-lg shadow-primary/30 transition-all focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
                   >
-                    Start Analysis
+                    {files.length === 1 ? 'Start Analysis' : `Analyze ${files.length} Files`}
                   </button>
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onFileSelect(null);
-                    }}
+                    onClick={handleClearSelection}
                     className="text-sm font-medium text-text-light hover:text-text transition-colors py-2"
                   >
-                    Choose a different file
+                    Choose different files
                   </button>
                 </div>
               </div>
@@ -159,8 +207,8 @@ export default function UploadScreen({ onFileSelect, onAnalyze, file, preview, e
                 <svg className="w-12 h-12 mx-auto text-blue-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
                 </svg>
-                <p className="text-lg font-medium text-text mb-1">Drop your bill here or click to upload</p>
-                <p className="text-sm text-text-light">Supports PNG, JPG, PDF</p>
+                <p className="text-lg font-medium text-text mb-1">Drop your bill files here or click to upload</p>
+                <p className="text-sm text-text-light">Supports multiple PNG, JPG, and PDF files</p>
               </>
             )}
           </div>

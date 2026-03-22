@@ -4,7 +4,9 @@ import json
 import re
 from pdf2image import convert_from_bytes
 import io
+from typing import TypedDict
 from config import GEMINI_API_KEY, GEMINI_MODEL
+from services.recovery import AIResponseError, UpstreamAIError
 
 client = genai.Client(api_key=GEMINI_API_KEY)
 
@@ -22,6 +24,12 @@ def extract_response_text(response) -> str:
                 return part_text
 
     return ""
+
+
+class BillUpload(TypedDict):
+    filename: str
+    content_type: str
+    bytes: bytes
 
 BILL_PARSING_PROMPT = """You are a medical billing expert. Analyze this medical bill image and extract ALL structured data.
 
@@ -68,12 +76,15 @@ IMPORTANT RULES:
 """
 
 
-async def parse_bill(file_bytes: bytes, content_type: str) -> dict:
-    """Parse a medical bill image or PDF into structured data."""
+def _normalize_image_mime_type(content_type: str) -> str:
+    if content_type == "image/jpg":
+        return "image/jpeg"
+    return content_type
 
-    # Convert PDF to images if needed
-    if content_type == "application/pdf":
-        images = convert_from_bytes(file_bytes, dpi=200)
+
+def _upload_to_image_parts(upload: BillUpload) -> list[types.Part]:
+    if upload["content_type"] == "application/pdf":
+        images = convert_from_bytes(upload["bytes"], dpi=200)
         image_parts = []
         for img in images:
             buffer = io.BytesIO()
@@ -81,25 +92,52 @@ async def parse_bill(file_bytes: bytes, content_type: str) -> dict:
             image_parts.append(
                 types.Part.from_bytes(data=buffer.getvalue(), mime_type="image/png")
             )
-    else:
-        image_parts = [
-            types.Part.from_bytes(data=file_bytes, mime_type=content_type)
-        ]
+        return image_parts
+
+    return [
+        types.Part.from_bytes(
+            data=upload["bytes"],
+            mime_type=_normalize_image_mime_type(upload["content_type"]),
+        )
+    ]
+
+
+def _build_image_parts(uploads: list[BillUpload]) -> list[types.Part]:
+    image_parts = []
+    for upload in uploads:
+        image_parts.extend(_upload_to_image_parts(upload))
+    return image_parts
+
+
+async def parse_bill(uploads: list[BillUpload]) -> dict:
+    """Parse one or more medical bill files into structured data."""
+
+    if not uploads:
+        raise ValueError("No files uploaded.")
+
+    image_parts = _build_image_parts(uploads)
+    if not image_parts:
+        raise ValueError("No bill pages could be extracted from the uploaded files.")
 
     # Build the content parts: all images + the prompt
     contents = image_parts + [BILL_PARSING_PROMPT]
 
-    response = client.models.generate_content(
-        model=GEMINI_MODEL,
-        contents=contents,
-        config=types.GenerateContentConfig(
-            temperature=0.0,
-            max_output_tokens=4096,
-        ),
-    )
+    try:
+        response = client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=contents,
+            config=types.GenerateContentConfig(
+                temperature=0.0,
+                max_output_tokens=4096,
+            ),
+        )
+    except Exception as exc:
+        raise UpstreamAIError("Gemini bill parser request failed.") from exc
 
     # Parse the response — handle potential markdown fencing
     raw_text = extract_response_text(response)
+    if not raw_text.strip():
+        raise AIResponseError("Gemini bill parser returned an empty response.")
     cleaned = re.sub(r"```json\s*|\s*```", "", raw_text).strip()
 
     try:
@@ -108,12 +146,18 @@ async def parse_bill(file_bytes: bytes, content_type: str) -> dict:
         # Fallback: try to find JSON object in the response
         match = re.search(r"\{.*\}", cleaned, re.DOTALL)
         if match:
-            parsed = json.loads(match.group())
+            try:
+                parsed = json.loads(match.group())
+            except json.JSONDecodeError as exc:
+                raise AIResponseError("Gemini bill parser did not return valid JSON.") from exc
         else:
-            raise ValueError("Gemini did not return valid JSON. Raw response: " + raw_text[:500])
+            raise AIResponseError("Gemini bill parser did not return valid JSON.")
 
     # Validate required fields exist
-    validate_parsed_bill(parsed)
+    try:
+        validate_parsed_bill(parsed)
+    except ValueError as exc:
+        raise AIResponseError(str(exc)) from exc
 
     # Add sequential IDs to line items
     for i, item in enumerate(parsed.get("line_items", []), start=1):

@@ -69,8 +69,8 @@ export default function App() {
         <UploadScreen
           onFileSelect={analysis.handleFileSelect}
           onAnalyze={analysis.analyze}
-          file={analysis.file}
-          preview={analysis.preview}
+          files={analysis.files}
+          previews={analysis.previews}
           error={analysis.error}
           state={analysis.state}
           setState={analysis.setState}

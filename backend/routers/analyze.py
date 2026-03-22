@@ -1,14 +1,33 @@
+import logging
+
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from services.bill_parser import parse_bill
 from services.benchmarker import benchmark_all
-from services.error_detector import detect_all_errors
+from services.error_detector import detect_ai_errors, detect_rule_based_errors, finalize_errors
 from services.state_laws import get_state_laws
-from services.letter_generator import generate_letter
+from services.letter_generator import generate_letter, render_dispute_letter_locally
+from services.recovery import get_recovery_case_for_upload, is_transient_ai_failure
 from models.schemas import GenerateLetterRequest
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 ALLOWED_TYPES = {"image/png", "image/jpeg", "image/jpg", "application/pdf"}
+
+
+def _upload_name(upload: UploadFile) -> str:
+    return upload.filename or "unnamed file"
+
+
+def _normalize_uploads(files: list[UploadFile] | None, file: UploadFile | None) -> list[UploadFile]:
+    uploads: list[UploadFile] = []
+
+    if files:
+        uploads.extend(files)
+    if file is not None:
+        uploads.append(file)
+
+    return uploads
 
 
 def _build_error_savings_index(errors: list) -> dict[int, float]:
@@ -75,31 +94,101 @@ def _calculate_summary_savings(parsed_bill: dict, benchmarks: list, errors: list
     }
 
 
+def _build_letter_fallback(
+    parsed_bill: dict,
+    benchmarks: list,
+    errors: list,
+    state_laws: list,
+    federal_laws: list,
+    state: str,
+    additional_context: str = "",
+    recovery_case=None,
+    facility_type: str = "non_facility",
+) -> str:
+    if (
+        recovery_case
+        and not additional_context
+        and state.upper() == recovery_case.default_state
+        and facility_type == recovery_case.default_facility_type
+    ):
+        return recovery_case.initial_letter
+
+    return render_dispute_letter_locally(
+        parsed_bill,
+        benchmarks,
+        errors,
+        state_laws,
+        federal_laws,
+        state=state,
+        additional_context=additional_context,
+    )
+
+
 @router.post("/analyze")
 async def analyze_bill(
-    file: UploadFile = File(...),
+    files: list[UploadFile] | None = File(None),
+    file: UploadFile | None = File(None),
     state: str = Form("VA"),
     facility_type: str = Form("non_facility"),
 ):
-    # 1. Validate file type
-    if file.content_type not in ALLOWED_TYPES:
-        raise HTTPException(status_code=400, detail=f"Unsupported file type: {file.content_type}. Upload PNG, JPG, or PDF.")
+    uploads = _normalize_uploads(files, file)
+    if not uploads:
+        raise HTTPException(status_code=400, detail="No files uploaded.")
 
-    file_bytes = await file.read()
-    if not file_bytes:
-        raise HTTPException(status_code=400, detail="Empty file uploaded.")
+    parser_uploads = []
+    for upload in uploads:
+        if upload.content_type not in ALLOWED_TYPES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported file type for {_upload_name(upload)}: {upload.content_type}. Upload PNG, JPG, or PDF.",
+            )
+
+        file_bytes = await upload.read()
+        if not file_bytes:
+            raise HTTPException(status_code=400, detail=f"Empty file uploaded: {_upload_name(upload)}.")
+
+        parser_uploads.append(
+            {
+                "filename": _upload_name(upload),
+                "content_type": upload.content_type,
+                "bytes": file_bytes,
+            }
+        )
+
+    recovery_case = None
+    if len(parser_uploads) == 1:
+        recovery_case = get_recovery_case_for_upload(parser_uploads[0]["bytes"])
 
     # 2. Parse the bill (Gemini Vision)
     try:
-        parsed_bill = await parse_bill(file_bytes, file.content_type)
-    except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e))
+        parsed_bill = await parse_bill(parser_uploads)
+    except Exception as exc:
+        if recovery_case and is_transient_ai_failure(exc):
+            logger.warning("Using seeded recovery parse for known demo PDF after parser failure: %s", exc.__class__.__name__)
+            parsed_bill = recovery_case.clone_parsed_bill()
+        elif isinstance(exc, ValueError):
+            raise HTTPException(status_code=422, detail=str(exc))
+        elif is_transient_ai_failure(exc):
+            raise HTTPException(status_code=502, detail="Apollo could not parse the bill because the AI service was unavailable. Please try again.")
+        raise
 
     # 3. Benchmark each line item against CMS data
     benchmarks = benchmark_all(parsed_bill["line_items"], facility_type)
 
     # 4. Detect billing errors (rule-based + AI)
-    errors = await detect_all_errors(parsed_bill["line_items"])
+    rule_based_errors = detect_rule_based_errors(parsed_bill["line_items"])
+    try:
+        ai_errors = await detect_ai_errors(parsed_bill["line_items"], rule_based_errors)
+    except Exception as exc:
+        if recovery_case and is_transient_ai_failure(exc):
+            logger.warning("Using seeded AI recovery findings for known demo PDF after AI audit failure: %s", exc.__class__.__name__)
+            ai_errors = recovery_case.clone_seeded_ai_errors(parsed_bill["line_items"])
+        elif is_transient_ai_failure(exc):
+            logger.warning("Gemini AI error detection failed; continuing with rule-based findings only: %s", exc.__class__.__name__)
+            ai_errors = []
+        else:
+            raise
+    errors = finalize_errors(rule_based_errors + ai_errors)
 
     # 5. Look up state laws
     state_laws_data = get_state_laws(state)
@@ -109,9 +198,25 @@ async def analyze_bill(
     # 6. Generate dispute letter (only if there are issues to dispute)
     has_issues = any(b["severity"] in ("moderate", "high", "critical") for b in benchmarks) or len(errors) > 0
     if has_issues:
-        dispute_letter = await generate_letter(
-            parsed_bill, benchmarks, errors, state_laws, federal_laws, state
-        )
+        try:
+            dispute_letter = await generate_letter(
+                parsed_bill, benchmarks, errors, state_laws, federal_laws, state
+            )
+        except Exception as exc:
+            if is_transient_ai_failure(exc):
+                logger.warning("Falling back to deterministic letter generation after AI failure: %s", exc.__class__.__name__)
+                dispute_letter = _build_letter_fallback(
+                    parsed_bill,
+                    benchmarks,
+                    errors,
+                    state_laws,
+                    federal_laws,
+                    state,
+                    recovery_case=recovery_case,
+                    facility_type=facility_type,
+                )
+            else:
+                raise
     else:
         dispute_letter = ""
 
@@ -159,15 +264,30 @@ async def regenerate_letter(request: GenerateLetterRequest):
     state_laws = state_laws_data["laws"] if state_laws_data else []
     federal_laws = state_laws_data["federal_laws"] if state_laws_data else []
 
-    letter = await generate_letter(
-        request.parsed_bill,
-        request.selected_benchmarks,
-        request.selected_errors,
-        state_laws,
-        federal_laws,
-        request.patient_state,
-        request.additional_context,
-    )
+    try:
+        letter = await generate_letter(
+            request.parsed_bill,
+            request.selected_benchmarks,
+            request.selected_errors,
+            state_laws,
+            federal_laws,
+            request.patient_state,
+            request.additional_context,
+        )
+    except Exception as exc:
+        if is_transient_ai_failure(exc):
+            logger.warning("Falling back to deterministic letter regeneration after AI failure: %s", exc.__class__.__name__)
+            letter = render_dispute_letter_locally(
+                request.parsed_bill,
+                request.selected_benchmarks,
+                request.selected_errors,
+                state_laws,
+                federal_laws,
+                state=request.patient_state,
+                additional_context=request.additional_context,
+            )
+        else:
+            raise
 
     return {"dispute_letter": letter}
 

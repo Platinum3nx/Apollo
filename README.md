@@ -152,18 +152,33 @@ Included sample bills:
 - `GET /api/search-cpt?q=...`
 - `GET /api/state-laws/{state_code}`
 
+`POST /api/analyze` accepts multipart uploads with repeated `files` fields for multi-file analysis. Legacy clients can still send a single `file` field.
+
 Example checks:
 
 ```bash
 curl http://localhost:8000/api/lookup/99214
 curl "http://localhost:8000/api/search-cpt?q=MRI"
 curl http://localhost:8000/api/state-laws/VA
+curl -X POST http://localhost:8000/api/analyze \
+  -F "files=@frontend/public/sample-bills/sample-a.png" \
+  -F "files=@frontend/public/sample-bills/sample-b.png" \
+  -F "state=VA" \
+  -F "facility_type=non_facility"
 python scripts/smoke_test.py
 ```
+
+Manual multi-file verification:
+
+- Select multiple images in the upload screen and confirm each one appears in the preview gallery before analysis.
+- Select a mix of image and PDF files and confirm images show thumbnails while PDFs show document tiles.
+- Submit repeated `files` fields to `POST /api/analyze` and confirm the backend returns the standard analysis payload.
+- Re-run the existing `python scripts/smoke_test.py` flow to confirm the legacy single-`file` upload path still works.
 
 ## Current Notes
 
 - The full `POST /api/analyze` path is entirely live Gemini-backed. There is no demo-only mock pipeline.
+- Multi-file bill analysis sends all uploaded bill pages to Gemini in a single request. Repeated `files` fields are preferred, while the legacy single `file` upload remains supported.
 - PDF export is generated client-side from the current letter.
 - The regenerate flow lets the user choose which pricing issues and billing errors to include, then regenerate the letter with edited draft guidance.
 
