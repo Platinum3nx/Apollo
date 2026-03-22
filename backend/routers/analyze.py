@@ -227,10 +227,15 @@ async def analyze_bill(
     items_fair = sum(1 for b in benchmarks if b["severity"] == "fair")
 
     avg_confidence = 0
-    confidence_sources = [b.get("overcharge_ratio") for b in benchmarks if b.get("overcharge_ratio")] + \
-                         [e.get("confidence", 0) for e in errors]
+    confidence_sources = [
+        c for c in (
+            [1.0 if b.get("medicare_rate") is not None else 0.3 for b in benchmarks]
+            + [e.get("confidence", 0) for e in errors]
+        )
+        if isinstance(c, (int, float))
+    ]
     if confidence_sources:
-        avg_confidence = round(sum(min(c, 1) for c in confidence_sources if isinstance(c, (int, float))) / len(confidence_sources), 2)
+        avg_confidence = round(sum(confidence_sources) / len(confidence_sources), 2)
 
     summary = {
         "total_billed": savings["total_billed"],
