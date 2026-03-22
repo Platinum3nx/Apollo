@@ -59,49 +59,51 @@ def detect_unbundling(line_items: list) -> list:
     errors = []
     conn = sqlite3.connect(DB_PATH)
 
-    codes = [item["cpt_code"] for item in line_items]
-    code_to_item = {item["cpt_code"]: item for item in line_items}
-    seen_pairs = set()
+    try:
+        codes = [item["cpt_code"] for item in line_items]
+        code_to_item = {item["cpt_code"]: item for item in line_items}
+        seen_pairs = set()
 
-    for i, code_a in enumerate(codes):
-        for code_b in codes[i + 1:]:
-            # Check both directions: (a,b) and (b,a)
-            cursor = conn.execute(
-                """SELECT column1_code, column2_code, modifier_indicator
-                   FROM cci_edits
-                   WHERE (column1_code = ? AND column2_code = ?)
-                      OR (column1_code = ? AND column2_code = ?)""",
-                (code_a, code_b, code_b, code_a)
-            )
-            row = cursor.fetchone()
-            if row:
-                comprehensive_code = row[0]
-                component_code = row[1]
-                modifier_indicator = row[2]
-                if modifier_indicator == "1":
-                    # CMS allows these together with an appropriate modifier, so do not
-                    # present them as deterministic unbundling errors.
-                    continue
+        for i, code_a in enumerate(codes):
+            for code_b in codes[i + 1:]:
+                # Check both directions: (a,b) and (b,a)
+                cursor = conn.execute(
+                    """SELECT column1_code, column2_code, modifier_indicator
+                       FROM cci_edits
+                       WHERE (column1_code = ? AND column2_code = ?)
+                          OR (column1_code = ? AND column2_code = ?)""",
+                    (code_a, code_b, code_b, code_a)
+                )
+                row = cursor.fetchone()
+                if row:
+                    comprehensive_code = row[0]
+                    component_code = row[1]
+                    modifier_indicator = row[2]
+                    if modifier_indicator == "1":
+                        # CMS allows these together with an appropriate modifier, so do not
+                        # present them as deterministic unbundling errors.
+                        continue
 
-                comp_item = code_to_item.get(component_code, code_to_item.get(code_b))
-                pair_key = (comprehensive_code, component_code, comp_item.get("id") if comp_item else None)
-                if pair_key in seen_pairs:
-                    continue
-                seen_pairs.add(pair_key)
-                errors.append({
-                    "type": "unbundling",
-                    "severity": "high",
-                    "confidence": 0.85,
-                    "title": f"Unbundling: {comprehensive_code} + {component_code}",
-                    "description": f"CPT {component_code} ({code_to_item.get(component_code, {}).get('description', 'N/A')}) is a component of {comprehensive_code} ({code_to_item.get(comprehensive_code, {}).get('description', 'N/A')}). Per CMS Correct Coding Initiative rules, these should not be billed separately.",
-                    "affected_items": [code_to_item.get(comprehensive_code, {}), code_to_item.get(component_code, {})],
-                    "primary_line_item_id": comp_item.get("id") if comp_item else None,
-                    "estimated_overcharge": comp_item.get("total_charge", 0) if comp_item else 0,
-                    "regulation": "CMS National Correct Coding Initiative (NCCI/CCI) Edits — Procedure-to-Procedure (PTP) edits",
-                    "recommendation": f"Request removal of the component code ({component_code}) charge. The comprehensive code ({comprehensive_code}) already covers this service."
-                })
+                    comp_item = code_to_item.get(component_code, code_to_item.get(code_b))
+                    pair_key = (comprehensive_code, component_code, comp_item.get("id") if comp_item else None)
+                    if pair_key in seen_pairs:
+                        continue
+                    seen_pairs.add(pair_key)
+                    errors.append({
+                        "type": "unbundling",
+                        "severity": "high",
+                        "confidence": 0.85,
+                        "title": f"Unbundling: {comprehensive_code} + {component_code}",
+                        "description": f"CPT {component_code} ({code_to_item.get(component_code, {}).get('description', 'N/A')}) is a component of {comprehensive_code} ({code_to_item.get(comprehensive_code, {}).get('description', 'N/A')}). Per CMS Correct Coding Initiative rules, these should not be billed separately.",
+                        "affected_items": [code_to_item.get(comprehensive_code, {}), code_to_item.get(component_code, {})],
+                        "primary_line_item_id": comp_item.get("id") if comp_item else None,
+                        "estimated_overcharge": comp_item.get("total_charge", 0) if comp_item else 0,
+                        "regulation": "CMS National Correct Coding Initiative (NCCI/CCI) Edits — Procedure-to-Procedure (PTP) edits",
+                        "recommendation": f"Request removal of the component code ({component_code}) charge. The comprehensive code ({comprehensive_code}) already covers this service."
+                    })
+    finally:
+        conn.close()
 
-    conn.close()
     return errors
 
 

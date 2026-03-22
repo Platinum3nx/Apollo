@@ -58,6 +58,7 @@
   ],
   "errors": [],
   "dispute_letter": "Dear Billing Department,\n\nI am writing to inquire about the charges for my visit on 2025-08-05. Upon reviewing fair market rates, I noticed the charges for the X-Ray (CPT 73564 - $395.00) and the Office Visit (CPT 99214 - $450.00) are significantly higher than the regional commercial averages, which typically run around $135 and $250 respectively.\n\nI would appreciate an itemized bill and a review of these charges for a possible adjustment.\n\nThank you,\nTaylor Doe",
+  "patient_state": "VA",
   "state_laws": [],
   "federal_laws": [],
   "summary": {

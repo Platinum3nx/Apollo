@@ -95,24 +95,34 @@
       "title": "Unbundled Lab Panels",
       "description": "A Basic Metabolic Panel (80048) was billed alongside a Comprehensive Metabolic Panel (80053). The BMP is a subset of the CMP and should not be billed separately.",
       "affected_items": [
-        { "id": 2, "cpt_code": "80053" },
-        { "id": 3, "cpt_code": "80048" }
+        { "id": 2, "cpt_code": "80053", "description": "Comprehensive Metabolic Panel", "total_charge": 300.00 },
+        { "id": 3, "cpt_code": "80048", "description": "Basic Metabolic Panel", "total_charge": 150.00 }
       ],
       "estimated_overcharge": 150.00,
       "regulation": "CMS Correct Coding Initiative (CCI)"
     }
   ],
   "dispute_letter": "Dear Billing Department,\n\nI am writing to dispute charges on my account ER-9921 from 2025-10-12.\n\nFirst, I noticed that a Basic Metabolic Panel (CPT 80048) was billed in addition to a Comprehensive Metabolic Panel (CPT 80053). Under NCCI guidelines, these codes are mutually exclusive, as the BMP is a clinical subset of the CMP. I respectfully request the removal of the $150.00 charge for the BMP.\n\nFurthermore, the charge of $2,500.00 for the Level 5 ER visit (99285) greatly exceeds fair market rates for this area, which typically range around $600-$1000. I request a review of these charges.\n\nThank you,\nAlex Smith",
+  "patient_state": "VA",
   "state_laws": [
     {
-      "law_name": "Emergency Services Protect Act",
-      "law_citation": "Gen. Stat. § 12-34",
+      "law_name": "Virginia Balance Billing Protection Act",
+      "law_citation": "Va. Code § 38.2-3445.01",
       "category": "balance_billing",
-      "summary": "Protects patients from surprise out-of-network bills for emergency services.",
-      "state_code": "VA"
+      "summary": "Prohibits balance billing for emergency services and certain out-of-network services at in-network facilities.",
+      "state_code": "VA",
+      "state_name": "Virginia"
     }
   ],
-  "federal_laws": [],
+  "federal_laws": [
+    {
+      "law_name": "No Surprises Act",
+      "law_citation": "Public Law 116-260, Division BB, Title I",
+      "category": "surprise_billing",
+      "summary": "Federal law protecting patients from surprise out-of-network bills for emergency services.",
+      "url": "https://www.cms.gov/nosurprises"
+    }
+  ],
   "summary": {
     "total_billed": 2950.00,
     "estimated_fair_total": 657.06,

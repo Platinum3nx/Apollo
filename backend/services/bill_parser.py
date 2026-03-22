@@ -172,7 +172,7 @@ async def parse_bill(uploads: list[BillUpload]) -> dict:
 
 
 def validate_parsed_bill(data: dict):
-    """Ensure the parsed bill has minimum required fields."""
+    """Ensure the parsed bill has minimum required fields and coerce types."""
     if "line_items" not in data or len(data["line_items"]) == 0:
         raise ValueError("No line items could be extracted from this bill.")
     for item in data["line_items"]:
@@ -180,6 +180,22 @@ def validate_parsed_bill(data: dict):
             raise ValueError(f"Line item missing charge amount: {item.get('description', 'unknown')}")
         if "cpt_code" not in item or item["cpt_code"] is None:
             raise ValueError(f"Could not determine CPT code for: {item.get('description', 'unknown')}")
+        # Coerce types so downstream code never crashes on unexpected AI output
+        try:
+            item["total_charge"] = float(item["total_charge"])
+        except (TypeError, ValueError):
+            raise ValueError(f"Invalid charge amount for: {item.get('description', 'unknown')}")
+        item["cpt_code"] = str(item["cpt_code"]).strip()
+        if item.get("unit_charge") is not None:
+            try:
+                item["unit_charge"] = float(item["unit_charge"])
+            except (TypeError, ValueError):
+                item["unit_charge"] = item["total_charge"]
+        if item.get("quantity") is not None:
+            try:
+                item["quantity"] = int(item["quantity"])
+            except (TypeError, ValueError):
+                item["quantity"] = 1
 
 
 def calculate_confidence(data: dict) -> float:
