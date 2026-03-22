@@ -1,0 +1,79 @@
+[
+  {
+    "state_code": "VA",
+    "state_name": "Virginia",
+    "law_name": "Virginia Balance Billing Protection Act",
+    "law_citation": "Va. Code \u00a7 38.2-3445.01",
+    "category": "balance_billing",
+    "summary": "Prohibits out-of-network providers at in-network facilities from balance billing patients for emergency services. Patients are only responsible for in-network cost-sharing amounts (copays, coinsurance, deductibles).",
+    "applies_to": "emergency",
+    "effective_date": "2020-01-01",
+    "url": "https://law.lis.virginia.gov/vacode/title38.2/chapter34/section38.2-3445.01/"
+  },
+  {
+    "state_code": "VA",
+    "state_name": "Virginia",
+    "law_name": "Virginia Health Care Price Transparency",
+    "law_citation": "Va. Code \u00a7 32.1-137.03",
+    "category": "price_transparency",
+    "summary": "Hospitals must provide patients with an estimate of charges upon request prior to non-emergency services. Patients have the right to receive an itemized bill.",
+    "applies_to": "all",
+    "effective_date": "2018-07-01",
+    "url": null
+  },
+  {
+    "state_code": "VA",
+    "state_name": "Virginia",
+    "law_name": "Virginia Surprise Billing Protection",
+    "law_citation": "Va. Code \u00a7 38.2-3445.02",
+    "category": "surprise_billing",
+    "summary": "Patients receiving emergency care or care at an in-network facility from out-of-network providers cannot be billed more than their in-network cost-sharing. Disputes between providers and insurers use an independent dispute resolution process.",
+    "applies_to": "emergency, in_network_facility_oon_provider",
+    "effective_date": "2021-01-01",
+    "url": null
+  },
+  {
+    "state_code": "VA",
+    "state_name": "Virginia",
+    "law_name": "Patient Right to Itemized Bill",
+    "law_citation": "Va. Code \u00a7 32.1-137",
+    "category": "dispute_rights",
+    "summary": "Patients have the right to receive a fully itemized statement of charges. Providers must furnish this within a reasonable time upon request.",
+    "applies_to": "all",
+    "effective_date": "1992-01-01",
+    "url": null
+  },
+  {
+    "state_code": "CA",
+    "state_name": "California",
+    "law_name": "California Surprise Balance Billing Protection",
+    "law_citation": "Cal. Health & Safety Code \u00a7 1386.9",
+    "category": "balance_billing",
+    "summary": "Patients cannot be balance billed for emergency services or by out-of-network providers at in-network facilities. Out-of-pocket costs limited to in-network cost-sharing.",
+    "applies_to": "emergency, in_network_facility_oon_provider",
+    "effective_date": "2017-07-01",
+    "url": null
+  },
+  {
+    "state_code": "NY",
+    "state_name": "New York",
+    "law_name": "New York Emergency Medical Services and Surprise Bills Law",
+    "law_citation": "NY Financial Services Law \u00a7 603",
+    "category": "surprise_billing",
+    "summary": "One of the first state surprise billing laws. Patients only owe their in-network cost-sharing for emergency and surprise out-of-network bills. Disputes go to independent dispute resolution.",
+    "applies_to": "emergency, surprise_oon",
+    "effective_date": "2015-03-31",
+    "url": null
+  },
+  {
+    "state_code": "TX",
+    "state_name": "Texas",
+    "law_name": "Texas Out-of-Network Billing Protection (SB 1264)",
+    "law_citation": "Tex. Insurance Code \u00a7 1467",
+    "category": "balance_billing",
+    "summary": "Patients receiving emergency care or care from an out-of-network provider at an in-network facility are protected from balance billing. Applies to most state-regulated insurance plans.",
+    "applies_to": "emergency, in_network_facility_oon_provider",
+    "effective_date": "2020-01-01",
+    "url": null
+  }
+]
