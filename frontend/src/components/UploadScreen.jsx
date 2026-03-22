@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import CaduceusIcon from './CaduceusIcon';
 
 const SAMPLE_BILLS = [
@@ -16,9 +16,11 @@ const US_STATES = [
 
 export default function UploadScreen({ onFileSelect, onAnalyze, file, preview, error, state, setState, facilityType, setFacilityType }) {
   const inputRef = useRef(null);
+  const [isDragActive, setIsDragActive] = useState(false);
 
   const handleDrop = useCallback((e) => {
     e.preventDefault();
+    setIsDragActive(false);
     const dropped = e.dataTransfer.files[0];
     if (dropped) {
       onFileSelect(dropped);
@@ -28,6 +30,12 @@ export default function UploadScreen({ onFileSelect, onAnalyze, file, preview, e
 
   const handleDragOver = useCallback((e) => {
     e.preventDefault();
+    setIsDragActive(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e) => {
+    e.preventDefault();
+    setIsDragActive(false);
   }, []);
 
   const handleFileInput = useCallback((e) => {
@@ -44,10 +52,11 @@ export default function UploadScreen({ onFileSelect, onAnalyze, file, preview, e
       const blob = await response.blob();
       const sampleFile = new File([blob], `${sample.id}.png`, { type: 'image/png' });
       onFileSelect(sampleFile);
-      onAnalyze(sampleFile);
+      onAnalyze(sampleFile, true, sample.id);
     } catch {
-      // Sample files may not exist yet, show a message
-      onFileSelect(null);
+      // Fallback if image fails to load during offline mode
+      onFileSelect({ name: `${sample.label} (Mock)` });
+      onAnalyze(null, true, sample.id);
     }
   }, [onFileSelect, onAnalyze]);
 
@@ -96,8 +105,12 @@ export default function UploadScreen({ onFileSelect, onAnalyze, file, preview, e
           <div
             onDrop={handleDrop}
             onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
             onClick={() => inputRef.current?.click()}
-            className="border-2 border-dashed border-blue-300 rounded-xl p-12 text-center cursor-pointer hover:border-primary hover:bg-blue-50/50 transition-colors"
+            className={`border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-all duration-200 active:scale-[0.99]
+              ${isDragActive 
+                ? 'border-primary bg-primary/5 ring-4 ring-primary/10' 
+                : 'border-blue-300 hover:border-primary hover:bg-blue-50/50'}`}
           >
             <input
               ref={inputRef}
@@ -123,8 +136,15 @@ export default function UploadScreen({ onFileSelect, onAnalyze, file, preview, e
           </div>
 
           {error && (
-            <div className="mt-4 p-3 bg-danger-light rounded-lg text-danger text-sm">
-              {error}
+            <div className="mt-6 flex items-start gap-3 p-4 bg-orange-50 border border-orange-200 rounded-xl text-orange-800 text-sm">
+              <svg className="w-5 h-5 text-orange-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <div>
+                <p className="font-semibold text-orange-900 mb-1">Upload failed</p>
+                <p>{error}</p>
+                <p className="mt-2 text-xs text-orange-700/80">Tip: Click "Try a sample bill" below to see a demo without the backend.</p>
+              </div>
             </div>
           )}
 

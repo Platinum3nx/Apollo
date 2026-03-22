@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 @theme {
-  --color-primary: #2563EB;
-  --color-primary-dark: #1D4ED8;
+  --color-primary: #4F46E5;
+  --color-primary-dark: #4338CA;
   --color-success: #16A34A;
   --color-success-light: #DCFCE7;
   --color-danger: #DC2626;
@@ -11,7 +11,7 @@
   --color-warning-light: #FFF7ED;
   --color-info: #0891B2;
   --color-text: #1F2937;
-  --color-text-light: #6B7280;
+  --color-text-light: #4B5563;
   --color-bg: #F9FAFB;
   --color-card: #FFFFFF;
   --color-border: #E5E7EB;
@@ -46,4 +46,13 @@
 
 .animate-pulse-soft {
   animation: pulse-soft 2s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite linear;
 }

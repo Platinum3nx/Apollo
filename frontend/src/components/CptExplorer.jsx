@@ -148,7 +148,13 @@ export default function CptExplorer() {
         )}
 
         {searchError && (
-          <div className="mb-4 rounded-2xl bg-danger-light p-4 text-sm text-danger">{searchError}</div>
+          <div className="mb-6 flex flex-col items-center justify-center rounded-3xl border border-orange-200 bg-orange-50 p-8 text-center shadow-sm">
+            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-orange-100 text-orange-500">
+              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+            </div>
+            <h3 className="mb-1 text-lg font-semibold text-orange-900">Network Disconnected</h3>
+            <p className="text-sm text-orange-800/80">Search failed. Please ensure the Apollo backend is running to search CMS databases.</p>
+          </div>
         )}
 
         {results.length > 0 && (
@@ -180,7 +186,7 @@ export default function CptExplorer() {
               const fairHigh = item.fair_price_range?.high;
 
               return (
-                <div key={item.cpt_code} className="rounded-3xl border border-border bg-card p-5 shadow-sm transition-shadow hover:shadow-md">
+                <div key={item.cpt_code} className="rounded-3xl border border-border bg-card p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg">
                   <button
                     type="button"
                     onClick={() => setExpandedCode(isExpanded ? null : item.cpt_code)}

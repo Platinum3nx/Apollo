@@ -24,9 +24,9 @@ export function useAnalysis() {
     }
   }, []);
 
-  const analyze = useCallback(async (fileToAnalyze) => {
+  const analyze = useCallback(async (fileToAnalyze, isMock = false, mockId = null) => {
     const targetFile = fileToAnalyze || file;
-    if (!targetFile) {
+    if (!targetFile && !isMock) {
       setError('Please select a file to analyze.');
       return;
     }
@@ -36,8 +36,19 @@ export function useAnalysis() {
     setResults(null);
 
     try {
-      const data = await analyzeBill(targetFile, state, facilityType);
-      setResults(data);
+      if (isMock && mockId) {
+        const response = await fetch(`/mock/sample-${mockId}-results.json`);
+        if (!response.ok) throw new Error('Failed to load mock data');
+        
+        // Artificial delay to demonstrate loading screen in demo
+        await new Promise(resolve => setTimeout(resolve, 2500));
+        
+        const data = await response.json();
+        setResults(data);
+      } else {
+        const data = await analyzeBill(targetFile, state, facilityType);
+        setResults(data);
+      }
     } catch (err) {
       const msg = err.response?.data?.detail || err.message || 'Analysis failed. Please try again.';
       setError(msg);

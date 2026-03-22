@@ -65,7 +65,7 @@ export default function LoadingScreen() {
                     step.icon
                   )}
                 </div>
-                <span className={`text-sm ${index === currentStep ? 'font-medium text-text' : 'text-text-light'}`}>
+                <span className={`text-sm ${index === currentStep ? 'font-bold text-primary' : 'text-text-light'}`}>
                   {step.label}
                 </span>
                 {index === currentStep && (
@@ -78,11 +78,13 @@ export default function LoadingScreen() {
           </div>
 
           {/* Progress bar */}
-          <div className="mt-6 bg-gray-200 rounded-full h-2 overflow-hidden">
+          <div className="mt-6 bg-blue-100/50 rounded-full h-3 overflow-hidden relative border border-blue-200/50">
             <div
-              className="bg-primary h-full rounded-full transition-all duration-500 ease-out"
+              className="bg-primary h-full rounded-full transition-all duration-500 ease-out relative overflow-hidden"
               style={{ width: `${((currentStep + 1) / STEPS.length) * 100}%` }}
-            />
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer" />
+            </div>
           </div>
         </div>
       </div>

@@ -1,0 +1,127 @@
+{
+  "parsed_bill": {
+    "provider": {
+      "name": "General Hospital ER",
+      "address": "123 Main St",
+      "npi": "1928374650",
+      "phone": "555-0100"
+    },
+    "patient": {
+      "name": "Alex Smith",
+      "account_number": "ER-9921",
+      "date_of_service": "2025-10-12"
+    },
+    "line_items": [
+      {
+        "id": 1,
+        "description": "Emergency Dept Visit, High Severity",
+        "cpt_code": "99285",
+        "quantity": 1,
+        "unit_charge": 2500.00,
+        "total_charge": 2500.00,
+        "date": "2025-10-12"
+      },
+      {
+        "id": 2,
+        "description": "Comprehensive Metabolic Panel",
+        "cpt_code": "80053",
+        "quantity": 1,
+        "unit_charge": 300.00,
+        "total_charge": 300.00,
+        "date": "2025-10-12"
+      },
+      {
+        "id": 3,
+        "description": "Basic Metabolic Panel",
+        "cpt_code": "80048",
+        "quantity": 1,
+        "unit_charge": 150.00,
+        "total_charge": 150.00,
+        "date": "2025-10-12"
+      }
+    ],
+    "total_billed": 2950.00
+  },
+  "benchmarks": [
+    {
+      "line_item_id": 1,
+      "cpt_code": "99285",
+      "description": "Emergency Dept Visit, High Severity",
+      "charged": 2500.00,
+      "medicare_rate": 204.49,
+      "fair_price_low": 408.98,
+      "fair_price_mid": 613.47,
+      "fair_price_high": 1022.45,
+      "overcharge_ratio": 4.1,
+      "potential_savings": 1477.55,
+      "severity": "critical",
+      "percentile": 95
+    },
+    {
+      "line_item_id": 2,
+      "cpt_code": "80053",
+      "description": "Comprehensive Metabolic Panel",
+      "charged": 300.00,
+      "medicare_rate": 14.53,
+      "fair_price_low": 29.06,
+      "fair_price_mid": 43.59,
+      "fair_price_high": 72.65,
+      "overcharge_ratio": 6.8,
+      "potential_savings": 227.35,
+      "severity": "critical",
+      "percentile": 98
+    },
+    {
+      "line_item_id": 3,
+      "cpt_code": "80048",
+      "description": "Basic Metabolic Panel",
+      "charged": 150.00,
+      "medicare_rate": 11.63,
+      "fair_price_low": 23.26,
+      "fair_price_mid": 34.89,
+      "fair_price_high": 58.15,
+      "overcharge_ratio": 4.3,
+      "potential_savings": 91.85,
+      "severity": "critical",
+      "percentile": 92
+    }
+  ],
+  "errors": [
+    {
+      "id": 1,
+      "type": "unbundling",
+      "severity": "high",
+      "confidence": 0.95,
+      "title": "Unbundled Lab Panels",
+      "description": "A Basic Metabolic Panel (80048) was billed alongside a Comprehensive Metabolic Panel (80053). The BMP is a subset of the CMP and should not be billed separately.",
+      "affected_items": [
+        { "id": 2, "cpt_code": "80053" },
+        { "id": 3, "cpt_code": "80048" }
+      ],
+      "estimated_overcharge": 150.00,
+      "regulation": "CMS Correct Coding Initiative (CCI)"
+    }
+  ],
+  "dispute_letter": "Dear Billing Department,\n\nI am writing to dispute charges on my account ER-9921 from 2025-10-12.\n\nFirst, I noticed that a Basic Metabolic Panel (CPT 80048) was billed in addition to a Comprehensive Metabolic Panel (CPT 80053). Under NCCI guidelines, these codes are mutually exclusive, as the BMP is a clinical subset of the CMP. I respectfully request the removal of the $150.00 charge for the BMP.\n\nFurthermore, the charge of $2,500.00 for the Level 5 ER visit (99285) greatly exceeds fair market rates for this area, which typically range around $600-$1000. I request a review of these charges.\n\nThank you,\nAlex Smith",
+  "state_laws": [
+    {
+      "law_name": "Emergency Services Protect Act",
+      "law_citation": "Gen. Stat. § 12-34",
+      "category": "balance_billing",
+      "summary": "Protects patients from surprise out-of-network bills for emergency services.",
+      "state_code": "VA"
+    }
+  ],
+  "federal_laws": [],
+  "summary": {
+    "total_billed": 2950.00,
+    "estimated_fair_total": 657.06,
+    "total_potential_savings": 2292.94,
+    "savings_from_overcharges": 2142.94,
+    "savings_from_errors": 150.00,
+    "overall_confidence": 0.9,
+    "items_flagged": 3,
+    "items_fair": 0,
+    "errors_found": 1
+  }
+}

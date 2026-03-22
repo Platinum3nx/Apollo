@@ -47,9 +47,9 @@ export default function PriceComparison({ benchmarks }) {
         <LegendItem color="#BBF7D0" label="Fair Price Range" />
         <LegendItem color="#2563EB" label="Medicare Rate" dashed />
       </div>
-      <div className="space-y-5">
+      <div className="space-y-2">
         {chartData.map((item) => (
-          <div key={item.cpt} className="grid gap-3 md:grid-cols-[220px_minmax(0,1fr)] md:items-center">
+          <div key={item.cpt} className="grid gap-4 md:grid-cols-[220px_minmax(0,1fr)] md:items-center p-3 rounded-xl hover:bg-slate-50 even:bg-slate-50/40 transition-colors">
             <div>
               <p className="font-medium text-sm text-text">{item.name}</p>
               <p className="text-xs text-text-light">CPT {item.cpt}</p>

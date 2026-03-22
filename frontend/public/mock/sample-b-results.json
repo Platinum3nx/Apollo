@@ -1,0 +1,74 @@
+{
+  "parsed_bill": {
+    "provider": {
+      "name": "Advanced Orthopedics",
+      "address": "400 Medical Dr"
+    },
+    "patient": {
+      "name": "Taylor Doe",
+      "date_of_service": "2025-08-05"
+    },
+    "line_items": [
+      {
+        "id": 1,
+        "description": "Office Visit, Established Patient",
+        "cpt_code": "99214",
+        "quantity": 1,
+        "unit_charge": 450.00,
+        "total_charge": 450.00
+      },
+      {
+        "id": 2,
+        "description": "X-Ray Exam Knee, 4 or more views",
+        "cpt_code": "73564",
+        "quantity": 1,
+        "unit_charge": 395.00,
+        "total_charge": 395.00
+      }
+    ],
+    "total_billed": 845.00
+  },
+  "benchmarks": [
+    {
+      "line_item_id": 1,
+      "cpt_code": "99214",
+      "description": "Office Visit, Established Patient",
+      "charged": 450.00,
+      "medicare_rate": 128.88,
+      "fair_price_low": 193.32,
+      "fair_price_mid": 257.76,
+      "fair_price_high": 322.20,
+      "overcharge_ratio": 1.74,
+      "potential_savings": 127.80,
+      "severity": "high"
+    },
+    {
+      "line_item_id": 2,
+      "cpt_code": "73564",
+      "description": "X-Ray Exam Knee, 4 or more views",
+      "charged": 395.00,
+      "medicare_rate": 45.12,
+      "fair_price_low": 90.24,
+      "fair_price_mid": 135.36,
+      "fair_price_high": 180.48,
+      "overcharge_ratio": 2.91,
+      "potential_savings": 214.52,
+      "severity": "critical"
+    }
+  ],
+  "errors": [],
+  "dispute_letter": "Dear Billing Department,\n\nI am writing to inquire about the charges for my visit on 2025-08-05. Upon reviewing fair market rates, I noticed the charges for the X-Ray (CPT 73564 - $395.00) and the Office Visit (CPT 99214 - $450.00) are significantly higher than the regional commercial averages, which typically run around $135 and $250 respectively.\n\nI would appreciate an itemized bill and a review of these charges for a possible adjustment.\n\nThank you,\nTaylor Doe",
+  "state_laws": [],
+  "federal_laws": [],
+  "summary": {
+    "total_billed": 845.00,
+    "estimated_fair_total": 393.12,
+    "total_potential_savings": 342.32,
+    "savings_from_overcharges": 342.32,
+    "savings_from_errors": 0.00,
+    "overall_confidence": 0.85,
+    "items_flagged": 2,
+    "items_fair": 0,
+    "errors_found": 0
+  }
+}

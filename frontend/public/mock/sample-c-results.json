@@ -1,0 +1,73 @@
+{
+  "parsed_bill": {
+    "provider": {
+      "name": "City Clinics"
+    },
+    "patient": {
+      "name": "Jordan Lee",
+      "date_of_service": "2025-09-20"
+    },
+    "line_items": [
+      {
+        "id": 1,
+        "description": "Routine checkup",
+        "cpt_code": "99213",
+        "quantity": 1,
+        "unit_charge": 150.00,
+        "total_charge": 150.00
+      },
+      {
+        "id": 2,
+        "description": "Flu Vaccine",
+        "cpt_code": "90686",
+        "quantity": 1,
+        "unit_charge": 25.00,
+        "total_charge": 25.00
+      }
+    ],
+    "total_billed": 175.00
+  },
+  "benchmarks": [
+    {
+      "line_item_id": 1,
+      "cpt_code": "99213",
+      "description": "Routine checkup",
+      "charged": 150.00,
+      "medicare_rate": 90.15,
+      "fair_price_low": 135.22,
+      "fair_price_mid": 180.30,
+      "fair_price_high": 225.37,
+      "overcharge_ratio": 0.83,
+      "potential_savings": 0.00,
+      "severity": "fair"
+    },
+    {
+      "line_item_id": 2,
+      "cpt_code": "90686",
+      "description": "Flu Vaccine",
+      "charged": 25.00,
+      "medicare_rate": 20.00,
+      "fair_price_low": 25.00,
+      "fair_price_mid": 35.00,
+      "fair_price_high": 45.00,
+      "overcharge_ratio": 0.71,
+      "potential_savings": 0.00,
+      "severity": "fair"
+    }
+  ],
+  "errors": [],
+  "dispute_letter": "",
+  "state_laws": [],
+  "federal_laws": [],
+  "summary": {
+    "total_billed": 175.00,
+    "estimated_fair_total": 175.00,
+    "total_potential_savings": 0.00,
+    "savings_from_overcharges": 0.00,
+    "savings_from_errors": 0.00,
+    "overall_confidence": 0.90,
+    "items_flagged": 0,
+    "items_fair": 2,
+    "errors_found": 0
+  }
+}
