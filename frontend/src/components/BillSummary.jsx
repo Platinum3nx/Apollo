@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { formatCurrency, severityColor, severityLabel } from '../utils/formatters';
 
 export default function BillSummary({ parsedBill, benchmarks, errors, summary }) {
@@ -149,6 +149,3 @@ export default function BillSummary({ parsedBill, benchmarks, errors, summary })
     </div>
   );
 }
-
-// Need Fragment import
-import { Fragment } from 'react';

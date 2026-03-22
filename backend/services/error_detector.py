@@ -161,7 +161,7 @@ async def detect_ai_errors(line_items: list, already_found: list) -> list:
         model=GEMINI_ANALYSIS_MODEL,
         contents=[prompt],
         config=types.GenerateContentConfig(
-            temperature=0.2,
+            temperature=0.0,
             max_output_tokens=1024,
         ),
     )

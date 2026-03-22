@@ -2,15 +2,13 @@ import sqlite3
 import pandas as pd
 import json
 import os
+import glob as _glob
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_PATH = os.path.join(BASE_DIR, "db", "pricing.db")
 DATA_DIR = os.path.join(BASE_DIR, "data")
 
 CONVERSION_FACTOR = 33.4009
-
-# Glob pattern to find the CLFS file (name varies by quarter/version)
-import glob as _glob
 
 
 def seed_database():
@@ -81,9 +79,10 @@ def seed_database():
         required = ["cpt_code", "description", "nf_total", "f_total"]
         missing = [c for c in required if c not in df.columns]
         if missing:
-            print(f"WARNING: Missing columns {missing}. Available: {list(df.columns)[:15]}")
-            print("Falling back to sample data.")
-            seed_sample_rates(conn)
+            raise RuntimeError(
+                f"CMS fee schedule is missing required columns {missing}. "
+                f"Available columns include: {list(df.columns)[:15]}"
+            )
         else:
             # Filter: only rows where MOD is blank/empty (no modifier variants)
             if "mod" in df.columns:
@@ -119,8 +118,10 @@ def seed_database():
             # Load Clinical Lab Fee Schedule (lab codes paid separately)
             _load_clfs(conn)
     else:
-        print(f"CMS fee schedule not found at {cms_path}. Seeding with sample data for demo.")
-        seed_sample_rates(conn)
+        raise FileNotFoundError(
+            f"CMS fee schedule not found at {cms_path}. "
+            "Place the real CMS file in backend/data/ before seeding."
+        )
 
     # ── Load CCI edits ──
     # Try xlsx first (CMS distributes as Excel), then csv
@@ -166,8 +167,10 @@ def seed_database():
         cci.to_sql("cci_edits", conn, if_exists="append", index=False)
         print(f"Loaded {len(cci)} CCI edit pairs")
     else:
-        print(f"CCI edits not found. Seeding with sample data for demo.")
-        seed_sample_cci(conn)
+        raise FileNotFoundError(
+            f"CCI edits not found in {DATA_DIR}. "
+            "Place the real CMS CCI file in backend/data/ before seeding."
+        )
 
     # ── Load state laws ──
     laws_path = os.path.join(DATA_DIR, "state_laws.json")
@@ -178,7 +181,10 @@ def seed_database():
         df_laws.to_sql("state_laws", conn, if_exists="append", index=False)
         print(f"Loaded {len(df_laws)} state law entries")
     else:
-        print(f"State laws not found at {laws_path}")
+        raise FileNotFoundError(
+            f"State laws not found at {laws_path}. "
+            "Place backend/data/state_laws.json before seeding."
+        )
 
     # ── Create indexes ──
     conn.execute("CREATE INDEX IF NOT EXISTS idx_cpt ON medicare_rates(cpt_code)")
@@ -198,58 +204,6 @@ def seed_database():
     print(f"  {cpt_count} CPT codes")
     print(f"  {cci_count} CCI edit pairs")
     print(f"  {law_count} state law entries")
-
-
-def seed_sample_rates(conn):
-    """Fallback: seed with common CPT codes and realistic Medicare rates for demo."""
-    sample_rates = [
-        ("99211", "Office/outpatient visit, established patient, minimal", 23.46, 15.10, "A"),
-        ("99212", "Office/outpatient visit, established patient, straightforward", 57.24, 36.06, "A"),
-        ("99213", "Office/outpatient visit, established patient, low complexity", 97.52, 69.22, "A"),
-        ("99214", "Office/outpatient visit, established patient, moderate complexity", 143.46, 100.14, "A"),
-        ("99215", "Office/outpatient visit, established patient, high complexity", 193.65, 137.88, "A"),
-        ("99281", "Emergency department visit, self-limited or minor", 51.22, 22.60, "A"),
-        ("99282", "Emergency department visit, low to moderate severity", 90.36, 47.59, "A"),
-        ("99283", "Emergency department visit, moderate severity", 148.86, 78.88, "A"),
-        ("99284", "Emergency department visit, high severity", 252.93, 141.78, "A"),
-        ("99285", "Emergency department visit, high severity with threat to life", 378.10, 224.50, "A"),
-    ]
-    conn.executemany(
-        "INSERT OR REPLACE INTO medicare_rates (cpt_code, description, non_facility_price, facility_price, status_code) VALUES (?, ?, ?, ?, ?)",
-        sample_rates,
-    )
-    print(f"Seeded {len(sample_rates)} sample Medicare rates for demo")
-
-
-def seed_sample_cci(conn):
-    """Fallback: seed with common CCI edit pairs for demo."""
-    sample_cci = [
-        ("80053", "80048", "2010-01-01", None, "0"),
-        ("80053", "80051", "2010-01-01", None, "0"),
-        ("80061", "82465", "2010-01-01", None, "0"),
-        ("80061", "83718", "2010-01-01", None, "0"),
-        ("80061", "84478", "2010-01-01", None, "0"),
-        ("85025", "85027", "2010-01-01", None, "0"),
-        ("85025", "85004", "2010-01-01", None, "0"),
-        ("99284", "99283", "2010-01-01", None, "0"),
-        ("99285", "99284", "2010-01-01", None, "0"),
-        ("99215", "99214", "2010-01-01", None, "0"),
-        ("99214", "99213", "2010-01-01", None, "0"),
-        ("74178", "74176", "2010-01-01", None, "0"),
-        ("74178", "74177", "2010-01-01", None, "0"),
-        ("73723", "73721", "2010-01-01", None, "0"),
-        ("73723", "73722", "2010-01-01", None, "0"),
-        ("70553", "70551", "2010-01-01", None, "0"),
-        ("70553", "70552", "2010-01-01", None, "0"),
-        ("45380", "45378", "2010-01-01", None, "1"),
-        ("45385", "45378", "2010-01-01", None, "1"),
-        ("96365", "96374", "2010-01-01", None, "1"),
-    ]
-    conn.executemany(
-        "INSERT OR REPLACE INTO cci_edits (column1_code, column2_code, effective_date, deletion_date, modifier_indicator) VALUES (?, ?, ?, ?, ?)",
-        sample_cci,
-    )
-    print(f"Seeded {len(sample_cci)} sample CCI edit pairs for demo")
 
 
 def _load_clfs(conn):

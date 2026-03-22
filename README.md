@@ -99,6 +99,8 @@ If `backend/db/pricing.db` is missing or stale, rebuild it with:
 python backend/db/seed_db.py
 ```
 
+`seed_db.py` expects the real source files in `backend/data/` and fails loudly if they are missing, rather than silently seeding demo-only pricing data.
+
 ## Run Locally
 
 Start the backend:
@@ -156,6 +158,7 @@ Example checks:
 curl http://localhost:8000/api/lookup/99214
 curl "http://localhost:8000/api/search-cpt?q=MRI"
 curl http://localhost:8000/api/state-laws/VA
+python scripts/smoke_test.py
 ```
 
 ## Current Notes
@@ -174,6 +177,8 @@ curl http://localhost:8000/api/state-laws/VA
   - Install `poppler`
 - Missing DB rows / lookup failures
   - Re-run `python backend/db/seed_db.py`
+ - Run the full backend smoke test
+  - `python scripts/smoke_test.py`
 
 ## Submission Checklist
 
@@ -184,4 +189,3 @@ curl http://localhost:8000/api/state-laws/VA
 - `GET /api/lookup/80053` returns a non-zero lab rate
 - `GET /api/search-cpt?q=MRI` returns results
 - `GET /api/state-laws/VA` returns Virginia laws
-

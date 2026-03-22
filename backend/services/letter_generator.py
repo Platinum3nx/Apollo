@@ -209,7 +209,7 @@ async def generate_letter(parsed_bill: dict, benchmarks: list, errors: list, sta
         model=GEMINI_LETTER_MODEL,
         contents=[prompt],
         config=types.GenerateContentConfig(
-            temperature=0.3,
+            temperature=0.1,
             max_output_tokens=3000,
         ),
     )

@@ -93,7 +93,7 @@ async def parse_bill(file_bytes: bytes, content_type: str) -> dict:
         model=GEMINI_MODEL,
         contents=contents,
         config=types.GenerateContentConfig(
-            temperature=0.1,
+            temperature=0.0,
             max_output_tokens=4096,
         ),
     )

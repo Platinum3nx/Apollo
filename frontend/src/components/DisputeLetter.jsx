@@ -1,5 +1,4 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { jsPDF } from 'jspdf';
 import { generateLetter } from '../api/client';
 import { formatCurrency } from '../utils/formatters';
 
@@ -10,6 +9,8 @@ function slugify(value) {
 export default function DisputeLetter({ letter, parsedBill, benchmarks, errors, patientState }) {
   const [copied, setCopied] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [pdfError, setPdfError] = useState(null);
   const [regenerating, setRegenerating] = useState(false);
   const [regenerateError, setRegenerateError] = useState(null);
   const [currentLetter, setCurrentLetter] = useState(letter);
@@ -55,30 +56,40 @@ export default function DisputeLetter({ letter, parsedBill, benchmarks, errors, 
     }
   }, [currentLetter]);
 
-  const handleDownloadPdf = useCallback(() => {
-    const doc = new jsPDF({ unit: 'pt', format: 'letter' });
-    const margin = 54;
-    const lineHeight = 18;
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const maxWidth = pageWidth - margin * 2;
-    const lines = doc.splitTextToSize(currentLetter, maxWidth);
-    let y = margin;
+  const handleDownloadPdf = useCallback(async () => {
+    setPdfError(null);
+    setDownloadingPdf(true);
 
-    doc.setFont('times', 'normal');
-    doc.setFontSize(12);
+    try {
+      const { jsPDF } = await import('jspdf');
+      const doc = new jsPDF({ unit: 'pt', format: 'letter' });
+      const margin = 54;
+      const lineHeight = 18;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const maxWidth = pageWidth - margin * 2;
+      const lines = doc.splitTextToSize(currentLetter, maxWidth);
+      let y = margin;
 
-    for (const line of lines) {
-      if (y > pageHeight - margin) {
-        doc.addPage();
-        y = margin;
+      doc.setFont('times', 'normal');
+      doc.setFontSize(12);
+
+      for (const line of lines) {
+        if (y > pageHeight - margin) {
+          doc.addPage();
+          y = margin;
+        }
+        doc.text(line, margin, y);
+        y += lineHeight;
       }
-      doc.text(line, margin, y);
-      y += lineHeight;
-    }
 
-    const patientName = parsedBill?.patient?.name || 'patient';
-    doc.save(`${slugify(patientName)}-apollo-dispute-letter.pdf`);
+      const patientName = parsedBill?.patient?.name || 'patient';
+      doc.save(`${slugify(patientName)}-apollo-dispute-letter.pdf`);
+    } catch (error) {
+      setPdfError(error.message || 'Could not create the PDF.');
+    } finally {
+      setDownloadingPdf(false);
+    }
   }, [currentLetter, parsedBill]);
 
   const toggleBenchmark = useCallback((lineItemId) => {
@@ -136,12 +147,13 @@ export default function DisputeLetter({ letter, parsedBill, benchmarks, errors, 
       <div className="flex flex-wrap gap-3">
         <button
           onClick={handleDownloadPdf}
+          disabled={downloadingPdf}
           className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors text-sm font-medium"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 16v-8m0 8l-3-3m3 3l3-3M5 20h14" />
           </svg>
-          Download PDF
+          {downloadingPdf ? 'Preparing PDF...' : 'Download PDF'}
         </button>
         <button
           onClick={handleCopy}
@@ -246,6 +258,12 @@ export default function DisputeLetter({ letter, parsedBill, benchmarks, errors, 
               {regenerating ? 'Regenerating...' : 'Regenerate Letter'}
             </button>
           </div>
+        </div>
+      )}
+
+      {pdfError && (
+        <div className="mt-3 p-3 bg-danger-light rounded-lg text-danger text-sm">
+          {pdfError}
         </div>
       )}
     </div>
