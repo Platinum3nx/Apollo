@@ -5,14 +5,17 @@ import os
 import glob as _glob
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DB_PATH = os.path.join(BASE_DIR, "db", "pricing.db")
+DEFAULT_DB_PATH = os.path.join(BASE_DIR, "db", "pricing.db")
 DATA_DIR = os.path.join(BASE_DIR, "data")
 
 CONVERSION_FACTOR = 33.4009
 
 
-def seed_database():
-    conn = sqlite3.connect(DB_PATH)
+def seed_database(db_path: str | None = None):
+    db_path = db_path or os.getenv("DATABASE_PATH") or DEFAULT_DB_PATH
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
+
+    conn = sqlite3.connect(db_path)
 
     # Create tables
     conn.executescript("""

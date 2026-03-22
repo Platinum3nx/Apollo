@@ -1,9 +1,19 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from config import ALLOWED_ORIGINS
+from db.bootstrap import ensure_pricing_db_ready
 from routers import analyze, explore
 
-app = FastAPI(title="Apollo API", version="1.0.0")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    ensure_pricing_db_ready()
+    yield
+
+
+app = FastAPI(title="Apollo API", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
