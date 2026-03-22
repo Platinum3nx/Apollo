@@ -1,7 +1,8 @@
-from google import genai
-from google.genai import types
+import asyncio
 import datetime
 import re
+from google import genai
+from google.genai import types
 from config import GEMINI_API_KEY, GEMINI_LETTER_MODEL
 from services.recovery import AIResponseError, UpstreamAIError
 from services.state_laws import US_STATES
@@ -304,7 +305,8 @@ async def generate_letter(parsed_bill: dict, benchmarks: list, errors: list, sta
     )
 
     try:
-        response = client.models.generate_content(
+        response = await asyncio.to_thread(
+            client.models.generate_content,
             model=GEMINI_LETTER_MODEL,
             contents=[prompt],
             config=types.GenerateContentConfig(

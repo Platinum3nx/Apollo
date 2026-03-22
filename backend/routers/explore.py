@@ -17,6 +17,34 @@ def _normalize_search_text(text: str) -> str:
     return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9]+", " ", text.lower())).strip()
 
 
+def _word_match(normalized_description: str, word: str) -> bool:
+    if len(word) <= 3:
+        return f" {word} " in f" {normalized_description} "
+    return word in normalized_description
+
+
+def _description_search_rank(row: sqlite3.Row, normalized_query: str, words: list[str]) -> tuple:
+    normalized_description = row["normalized_description"] or ""
+    padded_description = f" {normalized_description} "
+    matched_words = [word for word in words if _word_match(normalized_description, word)]
+    match_count = len(matched_words)
+    match_score = sum(max(len(word), 1) for word in matched_words)
+
+    if normalized_description == normalized_query:
+        exact_rank = 0
+    elif normalized_description.startswith(normalized_query):
+        exact_rank = 1
+    elif f" {normalized_query} " in padded_description:
+        exact_rank = 2
+    elif normalized_query in normalized_description:
+        exact_rank = 3
+    else:
+        exact_rank = 4
+
+    description = row["description"] or ""
+    return (exact_rank, -match_score, -match_count, len(description), row["cpt_code"])
+
+
 @router.get("/search-cpt")
 async def search_cpt(
     q: str = Query(..., min_length=2, description="Search query for procedure name or CPT code"),
@@ -62,10 +90,10 @@ async def search_cpt(
                 conditions.append("normalized_description LIKE ?")
                 params.append(f"%{word}%")
 
-        where_clause = " AND ".join(conditions) if conditions else "1 = 1"
+        where_clause = " OR ".join(conditions) if conditions else "1 = 1"
         cursor = conn.execute(
             f"""
-            SELECT cpt_code, description, non_facility_price, facility_price
+            SELECT cpt_code, description, non_facility_price, facility_price, normalized_description
             FROM (
                 SELECT
                     cpt_code,
@@ -77,30 +105,16 @@ async def search_cpt(
                 FROM medicare_rates
             ) matched
             WHERE {where_clause}
-            ORDER BY
-                CASE
-                    WHEN normalized_description = ? THEN 0
-                    WHEN normalized_description LIKE ? THEN 1
-                    WHEN padded_description LIKE ? THEN 2
-                    WHEN normalized_description LIKE ? THEN 3
-                    ELSE 4
-                END,
-                LENGTH(description) ASC,
-                cpt_code ASC
-            LIMIT ?
+            LIMIT 250
             """,
             params
-            + [
-                normalized_query,
-                f"{normalized_query}%",
-                f"% {normalized_query} %",
-                f"%{normalized_query}%",
-                limit,
-            ]
         )
 
     rows = cursor.fetchall()
     conn.close()
+
+    if not (stripped.isdigit() or (len(stripped) >= 4 and stripped[0].isdigit())):
+        rows = sorted(rows, key=lambda row: _description_search_rank(row, normalized_query, words))[:limit]
 
     results = []
     for row in rows:

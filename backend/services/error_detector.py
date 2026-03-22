@@ -1,8 +1,9 @@
+import asyncio
+import json
+import re
 import sqlite3
 from google import genai
 from google.genai import types
-import json
-import re
 from config import GEMINI_API_KEY, DATABASE_PATH, GEMINI_ANALYSIS_MODEL
 from services.recovery import AIResponseError, UpstreamAIError
 
@@ -159,7 +160,8 @@ async def detect_ai_errors(line_items: list, already_found: list) -> list:
     )
 
     try:
-        response = client.models.generate_content(
+        response = await asyncio.to_thread(
+            client.models.generate_content,
             model=GEMINI_ANALYSIS_MODEL,
             contents=[prompt],
             config=types.GenerateContentConfig(

@@ -156,6 +156,15 @@ class RecoveryEndpointTest(unittest.TestCase):
         self.assertIn("Account 784321560", letter)
         self.assertTrue(letter.strip().endswith("Sarah M Thompson"))
 
+    def test_search_cpt_returns_results_for_office_visit_phrase(self):
+        response = self.client.get("/api/search-cpt", params={"q": "office visit"})
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertGreater(len(payload["results"]), 0)
+        top_codes = [result["cpt_code"] for result in payload["results"][:5]]
+        self.assertTrue(any(code.startswith("992") for code in top_codes))
+
 
 if __name__ == "__main__":
     unittest.main()

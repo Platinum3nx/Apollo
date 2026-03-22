@@ -1,9 +1,10 @@
-from google import genai
-from google.genai import types
+import asyncio
+import io
 import json
 import re
+from google import genai
+from google.genai import types
 from pdf2image import convert_from_bytes
-import io
 from typing import TypedDict
 from config import GEMINI_API_KEY, GEMINI_MODEL
 from services.recovery import AIResponseError, UpstreamAIError
@@ -123,7 +124,8 @@ async def parse_bill(uploads: list[BillUpload]) -> dict:
     contents = image_parts + [BILL_PARSING_PROMPT]
 
     try:
-        response = client.models.generate_content(
+        response = await asyncio.to_thread(
+            client.models.generate_content,
             model=GEMINI_MODEL,
             contents=contents,
             config=types.GenerateContentConfig(
