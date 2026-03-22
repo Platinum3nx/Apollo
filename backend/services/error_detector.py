@@ -4,6 +4,7 @@ from google.genai import types
 import json
 import re
 from config import GEMINI_API_KEY, DATABASE_PATH, GEMINI_ANALYSIS_MODEL
+from services.recovery import AIResponseError, UpstreamAIError
 
 client = genai.Client(api_key=GEMINI_API_KEY)
 DB_PATH = DATABASE_PATH
@@ -157,25 +158,30 @@ async def detect_ai_errors(line_items: list, already_found: list) -> list:
         already_found_text=already_found_text,
     )
 
-    response = client.models.generate_content(
-        model=GEMINI_ANALYSIS_MODEL,
-        contents=[prompt],
-        config=types.GenerateContentConfig(
-            temperature=0.0,
-            max_output_tokens=1024,
-        ),
-    )
+    try:
+        response = client.models.generate_content(
+            model=GEMINI_ANALYSIS_MODEL,
+            contents=[prompt],
+            config=types.GenerateContentConfig(
+                temperature=0.0,
+                max_output_tokens=1024,
+            ),
+        )
+    except Exception as exc:
+        raise UpstreamAIError("Gemini billing error detector request failed.") from exc
 
     raw_text = extract_response_text(response)
+    if not raw_text.strip():
+        raise AIResponseError("Gemini billing error detector returned an empty response.")
     cleaned = re.sub(r"```json\s*|\s*```", "", raw_text).strip()
 
     try:
         ai_errors = json.loads(cleaned)
-    except json.JSONDecodeError:
-        return []  # If AI response isn't valid JSON, skip AI errors rather than crash
+    except json.JSONDecodeError as exc:
+        raise AIResponseError("Gemini billing error detector did not return valid JSON.") from exc
 
     if not isinstance(ai_errors, list):
-        return []
+        raise AIResponseError("Gemini billing error detector returned an invalid JSON shape.")
 
     # Enrich AI errors with regulation citations and map affected items
     code_to_item = {item["cpt_code"]: item for item in line_items}
@@ -239,23 +245,27 @@ def _dedupe_errors(errors: list) -> list:
 # Combined Detection Pipeline
 # ──────────────────────────────
 
-async def detect_all_errors(line_items: list) -> list:
-    """Run all error detection (rule-based + AI) and return combined results."""
-    # Pass 1: Rule-based (fast, high confidence)
+def detect_rule_based_errors(line_items: list) -> list:
+    """Run the deterministic billing checks only."""
     errors = []
     errors.extend(detect_duplicates(line_items))
     errors.extend(detect_unbundling(line_items))
+    return errors
 
-    # Pass 2: AI-powered (slower, variable confidence)
-    ai_errors = await detect_ai_errors(line_items, errors)
-    errors.extend(ai_errors)
+
+def finalize_errors(errors: list) -> list:
+    """Deduplicate, sort, and assign stable IDs."""
     errors = _dedupe_errors(errors)
-
-    # Sort by confidence descending so IDs reflect presentation order
     errors.sort(key=lambda e: e.get("confidence", 0), reverse=True)
 
-    # Assign sequential IDs
     for i, error in enumerate(errors, start=1):
         error["id"] = i
 
     return errors
+
+
+async def detect_all_errors(line_items: list) -> list:
+    """Run all error detection (rule-based + AI) and return combined results."""
+    errors = detect_rule_based_errors(line_items)
+    errors.extend(await detect_ai_errors(line_items, errors))
+    return finalize_errors(errors)

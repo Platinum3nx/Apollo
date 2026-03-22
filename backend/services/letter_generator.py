@@ -1,9 +1,10 @@
 from google import genai
 from google.genai import types
 import datetime
-import json
 import re
 from config import GEMINI_API_KEY, GEMINI_LETTER_MODEL
+from services.recovery import AIResponseError, UpstreamAIError
+from services.state_laws import US_STATES
 
 client = genai.Client(api_key=GEMINI_API_KEY)
 
@@ -168,6 +169,103 @@ def _format_laws(laws: list) -> str:
     )
 
 
+def _money(value) -> str:
+    return f"${float(value):,.2f}" if value is not None else "N/A"
+
+
+def _meaningful_laws(laws: list) -> list:
+    return [law for law in laws if law.get("law_name") and law.get("law_citation")]
+
+
+def render_dispute_letter_locally(
+    parsed_bill: dict,
+    benchmarks: list,
+    errors: list,
+    state_laws: list,
+    federal_laws: list,
+    state: str = "VA",
+    additional_context: str = "",
+) -> str:
+    """Deterministic plain-text fallback for dispute letters."""
+    flagged_benchmarks = [b for b in benchmarks if b.get("severity") in ("moderate", "high", "critical")]
+    patient = parsed_bill.get("patient", {})
+    provider = parsed_bill.get("provider", {})
+    today_date = datetime.date.today().isoformat()
+    sender_name = patient.get("name") or "The Patient"
+    account_number = patient.get("account_number") or "Unknown Account"
+    date_of_service = patient.get("date_of_service") or "Unknown Date"
+    provider_name = provider.get("name") or "Provider"
+    provider_address = provider.get("address")
+    state_code = (state or "VA").upper()
+    state_name = US_STATES.get(state_code, state_code)
+
+    lines = [
+        today_date,
+        "",
+        "Billing Department",
+        provider_name,
+    ]
+    if provider_address:
+        lines.append(provider_address)
+
+    lines.extend([
+        "",
+        f"Re: Account {account_number} / Date of Service {date_of_service}",
+        "",
+        "Dear Billing Department,",
+        "",
+        f"I am writing to dispute charges on my account {account_number} for medical services provided on {date_of_service}. After reviewing the itemized statement, I believe this bill should be re-reviewed for both pricing accuracy and billing compliance.",
+    ])
+
+    if flagged_benchmarks:
+        lines.extend(["", "Pricing Concerns"])
+        for benchmark in flagged_benchmarks:
+            lines.append(
+                f"- CPT {benchmark.get('cpt_code')}: {benchmark.get('description')} was billed at {_money(benchmark.get('charged'))}. "
+                f"The CMS Medicare Physician Fee Schedule rate is {_money(benchmark.get('medicare_rate'))}, and a fair commercial target is about {_money(benchmark.get('fair_price_mid'))}."
+            )
+
+    if errors:
+        lines.extend(["", "Billing Errors"])
+        for error in errors:
+            correction_amount = error.get("estimated_overcharge")
+            amount_text = _money(correction_amount) if correction_amount is not None else "the disputed amount"
+            lines.append(
+                f"- {error.get('title')}: {error.get('description')} "
+                f"I request a correction of {amount_text}. Relevant authority: {error.get('regulation') or 'CMS billing guidelines'}."
+            )
+
+    lines.extend(["", "Your Rights Under State and Federal Law"])
+    all_laws = _meaningful_laws(state_laws) + _meaningful_laws(federal_laws)
+    if all_laws:
+        for law in all_laws:
+            lines.append(
+                f"- Under {law.get('law_name')} ({law.get('law_citation')}), {law.get('summary')}"
+            )
+    else:
+        lines.append(
+            f"- I request review under applicable {state_name} and federal billing-protection requirements."
+        )
+
+    if additional_context and "edited draft as wording guidance" not in additional_context.lower():
+        trimmed_context = " ".join(additional_context.strip().split())
+        if trimmed_context:
+            lines.extend(["", f"Additional context: {trimmed_context}"])
+
+    lines.extend([
+        "",
+        "I request a complete itemized re-review of all charges on this account and a written response within 30 business days explaining any adjustments or the basis for maintaining any disputed charges.",
+        "",
+        f"If this dispute is not resolved satisfactorily, I will escalate the matter to the {state_name} State Insurance Commissioner and file any appropriate complaint with CMS based on the billing and consumer-protection rules described above.",
+        "",
+        "Sincerely,",
+        "",
+        sender_name,
+    ])
+
+    return _plain_text_letter(_apply_letter_metadata("\n".join(lines), today_date, sender_name))
+
+
 async def generate_letter(parsed_bill: dict, benchmarks: list, errors: list, state_laws: list, federal_laws: list, state: str = "VA", additional_context: str = "") -> str:
     """Generate a dispute letter from analysis results, including state-specific legal citations."""
 
@@ -205,13 +303,20 @@ async def generate_letter(parsed_bill: dict, benchmarks: list, errors: list, sta
         additional_context=additional_context or "None provided.",
     )
 
-    response = client.models.generate_content(
-        model=GEMINI_LETTER_MODEL,
-        contents=[prompt],
-        config=types.GenerateContentConfig(
-            temperature=0.1,
-            max_output_tokens=3000,
-        ),
-    )
+    try:
+        response = client.models.generate_content(
+            model=GEMINI_LETTER_MODEL,
+            contents=[prompt],
+            config=types.GenerateContentConfig(
+                temperature=0.1,
+                max_output_tokens=3000,
+            ),
+        )
+    except Exception as exc:
+        raise UpstreamAIError("Gemini letter generation request failed.") from exc
 
-    return _plain_text_letter(_apply_letter_metadata(_response_text(response), today_date, sender_name))
+    letter_text = _response_text(response)
+    if not letter_text:
+        raise AIResponseError("Gemini letter generator returned an empty response.")
+
+    return _plain_text_letter(_apply_letter_metadata(letter_text, today_date, sender_name))

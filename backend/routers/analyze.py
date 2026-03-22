@@ -170,7 +170,8 @@ async def analyze_bill(
             raise HTTPException(status_code=422, detail=str(exc))
         elif is_transient_ai_failure(exc):
             raise HTTPException(status_code=502, detail="Apollo could not parse the bill because the AI service was unavailable. Please try again.")
-        raise
+        else:
+            raise
 
     # 3. Benchmark each line item against CMS data
     benchmarks = benchmark_all(parsed_bill["line_items"], facility_type)
