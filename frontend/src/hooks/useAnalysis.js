@@ -15,7 +15,7 @@ export function useAnalysis() {
     setError(null);
     setResults(null);
 
-    if (selectedFile && selectedFile.type.startsWith('image/')) {
+    if (selectedFile && selectedFile.type?.startsWith('image/')) {
       const reader = new FileReader();
       reader.onload = (e) => setPreview(e.target.result);
       reader.readAsDataURL(selectedFile);
