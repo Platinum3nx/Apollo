@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { searchCpt } from '../api/client';
 import { formatCurrency } from '../utils/formatters';
 
@@ -13,25 +13,81 @@ const POPULAR_SEARCHES = [
   { label: 'Emergency Room', query: 'emergency' },
 ];
 
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function highlightMatch(text, query) {
+  if (!text) return 'Procedure description unavailable';
+
+  const terms = query
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (!terms.length) return text;
+
+  const pattern = new RegExp(`(${terms.map(escapeRegExp).join('|')})`, 'ig');
+  const parts = text.split(pattern);
+  const isMatch = (part) => terms.some((term) => part.toLowerCase() === term.toLowerCase());
+
+  return parts.map((part, index) => (
+    isMatch(part)
+      ? (
+        <mark
+          key={`${part}-${index}`}
+          className="rounded bg-primary/10 px-0.5 text-primary"
+        >
+          {part}
+        </mark>
+      )
+      : <span key={`${part}-${index}`}>{part}</span>
+  ));
+}
+
+function MetricCard({ label, value, hint, tone = 'neutral' }) {
+  const toneClasses = {
+    neutral: 'border-border bg-bg text-text',
+    primary: 'border-primary/15 bg-primary/5 text-primary-dark',
+    danger: 'border-danger/15 bg-danger-light/50 text-danger',
+  };
+
+  return (
+    <div className={`rounded-2xl border p-4 ${toneClasses[tone] || toneClasses.neutral}`}>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text-light">{label}</p>
+      <p className="mt-2 text-xl font-semibold text-text">{value}</p>
+      <p className="mt-1 text-sm text-text-light">{hint}</p>
+    </div>
+  );
+}
+
 export default function CptExplorer() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [expandedCode, setExpandedCode] = useState(null);
   const [searchError, setSearchError] = useState(null);
+  const trimmedQuery = query.trim();
+  const hasSearch = trimmedQuery.length >= 2;
 
   useEffect(() => {
-    if (query.length < 2) {
+    if (!hasSearch) {
       setResults([]);
+      setExpandedCode(null);
       setSearchError(null);
       return;
     }
+
     const timer = setTimeout(async () => {
       setLoading(true);
       setSearchError(null);
+
       try {
-        const data = await searchCpt(query, 20);
+        const data = await searchCpt(trimmedQuery, 20);
         setResults(data.results);
+        setExpandedCode((currentCode) => (
+          data.results.some((item) => item.cpt_code === currentCode) ? currentCode : null
+        ));
       } catch {
         setSearchError('Search failed. Make sure the backend is running.');
         setResults([]);
@@ -39,47 +95,50 @@ export default function CptExplorer() {
         setLoading(false);
       }
     }, 300);
+
     return () => clearTimeout(timer);
-  }, [query]);
+  }, [hasSearch, trimmedQuery]);
 
   return (
     <div className="min-h-screen bg-bg p-4">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-8 pt-8">
+      <div className="mx-auto max-w-5xl">
+        <div className="pt-8 text-center">
           <h1 className="text-3xl font-bold text-text mb-2">Price Explorer</h1>
           <p className="text-text-light">Look up the fair price for any medical procedure</p>
         </div>
 
-        {/* Search bar */}
-        <div className="relative mb-6">
-          <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-text-light" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search any procedure — try 'MRI', 'knee replacement', 'colonoscopy'..."
-            className="w-full pl-12 pr-4 py-4 rounded-xl border border-border bg-card shadow-sm text-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-          />
-          {loading && (
-            <div className="absolute right-4 top-1/2 -translate-y-1/2">
-              <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-            </div>
-          )}
+        <div className="mt-8 mb-6">
+          <div className="relative">
+            <svg className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-text-light" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search by procedure or CPT code — try 'MRI', 'knee replacement', or '70553'"
+              className="w-full rounded-2xl border border-border bg-card py-4 pl-12 pr-4 text-lg shadow-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+            {loading && (
+              <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              </div>
+            )}
+          </div>
+          <p className="mt-3 text-sm text-text-light">
+            Results are sorted by relevance first. The procedure names come from official CMS billing data, so they can look abbreviated.
+          </p>
         </div>
 
-        {/* Popular searches (shown when no query) */}
-        {query.length < 2 && (
-          <div className="mb-8">
-            <p className="text-sm text-text-light mb-3 text-center">Popular searches:</p>
-            <div className="flex flex-wrap justify-center gap-2">
+        {!hasSearch && (
+          <div className="mb-8 rounded-3xl border border-border bg-card p-5 shadow-sm">
+            <p className="mb-3 text-sm font-medium text-text-light">Popular searches</p>
+            <div className="flex flex-wrap gap-2">
               {POPULAR_SEARCHES.map((item) => (
                 <button
                   key={item.query}
                   onClick={() => setQuery(item.query)}
-                  className="px-4 py-2 bg-card border border-border rounded-full text-sm hover:border-primary hover:text-primary transition-colors"
+                  className="rounded-full border border-border bg-bg px-4 py-2 text-sm transition-colors hover:border-primary hover:text-primary"
                 >
                   {item.label}
                 </button>
@@ -88,86 +147,137 @@ export default function CptExplorer() {
           </div>
         )}
 
-        {/* Error */}
         {searchError && (
-          <div className="bg-danger-light text-danger rounded-xl p-4 mb-4 text-sm">{searchError}</div>
+          <div className="mb-4 rounded-2xl bg-danger-light p-4 text-sm text-danger">{searchError}</div>
         )}
 
-        {/* Results */}
         {results.length > 0 && (
-          <div className="space-y-3">
-            {results.map((item) => {
+          <div className="mb-4 rounded-3xl border border-border bg-card p-5 shadow-sm">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-text">
+                  {results.length} match{results.length === 1 ? '' : 'es'} for &ldquo;{trimmedQuery}&rdquo;
+                </p>
+                <p className="text-sm text-text-light">
+                  Use the CPT code to compare against your bill. Open a card if you want the underlying Medicare rate details.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2 text-xs">
+                <span className="rounded-full bg-primary/10 px-3 py-1 font-medium text-primary">Most relevant first</span>
+                <span className="rounded-full bg-bg px-3 py-1 font-medium text-text-light">Official CMS wording</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {results.length > 0 && (
+          <div className="space-y-4">
+            {results.map((item, index) => {
               const isExpanded = expandedCode === item.cpt_code;
               const basePrice = item.medicare_non_facility || item.medicare_facility || 0;
-              const fairHigh = item.fair_price_range?.high || 0;
+              const fairLow = item.fair_price_range?.low;
+              const fairMid = item.fair_price_range?.mid;
+              const fairHigh = item.fair_price_range?.high;
 
               return (
-                <div
-                  key={item.cpt_code}
-                  className="bg-card border border-border rounded-xl p-5 cursor-pointer hover:shadow-md transition-shadow"
-                  onClick={() => setExpandedCode(isExpanded ? null : item.cpt_code)}
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <code className="text-sm font-bold font-mono bg-primary/10 text-primary px-2 py-0.5 rounded">
-                          {item.cpt_code}
-                        </code>
-                      </div>
-                      <p className="text-sm text-text">{item.description}</p>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-xs text-text-light">Medicare Rate</p>
-                      <p className="font-bold text-primary">{formatCurrency(basePrice)}</p>
-                    </div>
-                  </div>
-
-                  {/* Price bar visualization */}
-                  {basePrice > 0 && (
-                    <div className="mt-3">
-                      <div className="flex justify-between text-xs text-text-light mb-1">
-                        <span>Fair Range: {formatCurrency(item.fair_price_range?.low)} – {formatCurrency(item.fair_price_range?.high)}</span>
-                      </div>
-                      <div className="bg-gray-100 rounded-full h-3 relative overflow-hidden">
-                        <div
-                          className="bg-success/30 h-full absolute"
-                          style={{
-                            left: `${(item.fair_price_range?.low / (fairHigh * 1.5)) * 100}%`,
-                            width: `${((item.fair_price_range?.high - item.fair_price_range?.low) / (fairHigh * 1.5)) * 100}%`
-                          }}
-                        />
-                        <div
-                          className="bg-primary h-full rounded-full absolute w-1"
-                          style={{ left: `${(basePrice / (fairHigh * 1.5)) * 100}%` }}
-                          title="Medicare Rate"
-                        />
-                      </div>
-                      <p className="text-xs text-text-light mt-1">
-                        If charged more than <span className="font-semibold text-danger">{formatCurrency(fairHigh)}</span>, you're likely being overcharged
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Expanded details */}
-                  {isExpanded && (
-                    <div className="mt-4 pt-4 border-t border-border grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <p className="text-text-light">Non-Facility (Office)</p>
-                        <p className="font-semibold">{formatCurrency(item.medicare_non_facility)}</p>
-                      </div>
-                      <div>
-                        <p className="text-text-light">Facility (Hospital)</p>
-                        <p className="font-semibold">{formatCurrency(item.medicare_facility)}</p>
-                      </div>
-                      <div>
-                        <p className="text-text-light">Fair Price (1.5x–2.5x Medicare)</p>
-                        <p className="font-semibold text-success">
-                          {formatCurrency(item.fair_price_range?.low)} – {formatCurrency(item.fair_price_range?.high)}
+                <div key={item.cpt_code} className="rounded-3xl border border-border bg-card p-5 shadow-sm transition-shadow hover:shadow-md">
+                  <button
+                    type="button"
+                    onClick={() => setExpandedCode(isExpanded ? null : item.cpt_code)}
+                    aria-expanded={isExpanded}
+                    className="w-full text-left"
+                  >
+                    <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="flex-1">
+                        <div className="mb-3 flex flex-wrap items-center gap-2">
+                          <code className="rounded-lg bg-primary/10 px-3 py-1 text-sm font-bold text-primary">
+                            {item.cpt_code}
+                          </code>
+                          {index === 0 && (
+                            <span className="rounded-full bg-success-light px-3 py-1 text-xs font-semibold text-success">
+                              Best match
+                            </span>
+                          )}
+                          <span className="rounded-full bg-bg px-3 py-1 text-xs font-medium text-text-light">
+                            Official CMS label
+                          </span>
+                        </div>
+                        <h2 className="text-xl font-semibold leading-snug text-text">
+                          {highlightMatch(item.description, trimmedQuery)}
+                        </h2>
+                        <p className="mt-2 text-sm text-text-light">
+                          Compare this CPT code to the line item on your bill or to a hospital estimate before you negotiate.
                         </p>
                       </div>
-                      <div>
-                        <p className="text-text-light">Typical Commercial (2x)</p>
-                        <p className="font-semibold">{formatCurrency(item.fair_price_range?.mid)}</p>
+
+                      <div className="rounded-2xl border border-success/20 bg-success-light p-4 lg:w-80">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-success">Likely fair billed range</p>
+                        <p className="mt-2 text-2xl font-bold text-text">
+                          {formatCurrency(fairLow)} - {formatCurrency(fairHigh)}
+                        </p>
+                        <p className="mt-2 text-sm text-text-light">
+                          Bills above <span className="font-semibold text-danger">{formatCurrency(fairHigh)}</span> are worth a closer review.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 grid gap-3 md:grid-cols-3">
+                      <MetricCard
+                        label="Medicare baseline"
+                        value={formatCurrency(basePrice)}
+                        hint="Apollo anchors its pricing range to this reference amount."
+                        tone="primary"
+                      />
+                      <MetricCard
+                        label="Typical commercial midpoint"
+                        value={formatCurrency(fairMid)}
+                        hint="A simple mid-market checkpoint based on 2x Medicare."
+                      />
+                      <MetricCard
+                        label="Review if bill exceeds"
+                        value={formatCurrency(fairHigh)}
+                        hint="Higher charges are more likely to be inflated."
+                        tone="danger"
+                      />
+                    </div>
+
+                    <div className="mt-4 flex items-center justify-between border-t border-border pt-4 text-sm">
+                      <span className="font-medium text-text">
+                        {isExpanded ? 'Hide rate details' : 'Show rate details'}
+                      </span>
+                      <svg
+                        className={`h-5 w-5 text-text-light transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                  </button>
+
+                  {isExpanded && (
+                    <div className="mt-4 grid gap-3 border-t border-border pt-4 md:grid-cols-2 xl:grid-cols-4">
+                      <div className="rounded-2xl bg-bg p-4">
+                        <p className="text-sm text-text-light">Office / non-facility Medicare rate</p>
+                        <p className="mt-1 text-lg font-semibold text-text">{formatCurrency(item.medicare_non_facility)}</p>
+                      </div>
+                      <div className="rounded-2xl bg-bg p-4">
+                        <p className="text-sm text-text-light">Hospital / facility Medicare rate</p>
+                        <p className="mt-1 text-lg font-semibold text-text">{formatCurrency(item.medicare_facility)}</p>
+                      </div>
+                      <div className="rounded-2xl bg-bg p-4">
+                        <p className="text-sm text-text-light">Apollo fair-price range</p>
+                        <p className="mt-1 text-lg font-semibold text-success">
+                          {formatCurrency(fairLow)} - {formatCurrency(fairHigh)}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl bg-bg p-4">
+                        <p className="text-sm text-text-light">Why this matters</p>
+                        <p className="mt-1 text-sm text-text">
+                          Commercial bills often land around 1.5x to 2.5x Medicare. Large gaps above that range are a useful negotiation signal.
+                        </p>
                       </div>
                     </div>
                   )}
@@ -177,11 +287,10 @@ export default function CptExplorer() {
           </div>
         )}
 
-        {/* No results */}
-        {query.length >= 2 && !loading && results.length === 0 && !searchError && (
-          <div className="text-center py-12 text-text-light">
-            <p className="text-lg mb-1">No procedures found matching &ldquo;{query}&rdquo;</p>
-            <p className="text-sm">Try broader terms — e.g., &ldquo;MRI&rdquo; instead of &ldquo;MRI of left knee with contrast&rdquo;</p>
+        {hasSearch && !loading && results.length === 0 && !searchError && (
+          <div className="py-12 text-center text-text-light">
+            <p className="mb-1 text-lg">No procedures found matching &ldquo;{trimmedQuery}&rdquo;</p>
+            <p className="text-sm">Try a broader term like &ldquo;MRI&rdquo; or search directly by CPT code.</p>
           </div>
         )}
       </div>

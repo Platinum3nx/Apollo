@@ -1,9 +1,20 @@
-from fastapi import APIRouter, HTTPException, Query
 import sqlite3
+import re
+
+from fastapi import APIRouter, HTTPException, Query
 from config import DATABASE_PATH
 
 router = APIRouter()
 DB_PATH = DATABASE_PATH
+NORMALIZED_DESCRIPTION_SQL = (
+    "trim(lower("
+    "replace(replace(replace(replace(replace(coalesce(description, ''), '/', ' '), '-', ' '), '&', ' '), ',', ' '), '.', ' ')"
+    "))"
+)
+
+
+def _normalize_search_text(text: str) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9]+", " ", text.lower())).strip()
 
 
 @router.get("/search-cpt")
@@ -20,17 +31,72 @@ async def search_cpt(
     if stripped.isdigit() or (len(stripped) >= 4 and stripped[0].isdigit()):
         # Search by code prefix
         cursor = conn.execute(
-            "SELECT cpt_code, description, non_facility_price, facility_price FROM medicare_rates WHERE cpt_code LIKE ? LIMIT ?",
-            (f"{stripped}%", limit)
+            """
+            SELECT cpt_code, description, non_facility_price, facility_price
+            FROM medicare_rates
+            WHERE cpt_code LIKE ?
+            ORDER BY
+                CASE WHEN cpt_code = ? THEN 0 ELSE 1 END,
+                LENGTH(cpt_code) ASC,
+                cpt_code ASC
+            LIMIT ?
+            """,
+            (f"{stripped}%", stripped, limit)
         )
     else:
-        # Search by description keywords (AND logic: all words must match)
-        words = stripped.split()
-        conditions = " AND ".join(["description LIKE ?" for _ in words])
-        params = [f"%{word}%" for word in words]
+        # Search by description keywords using relevance instead of price-only sorting.
+        normalized_query = _normalize_search_text(stripped)
+        if not normalized_query:
+            conn.close()
+            return {"query": q, "results": [], "total_results": 0}
+
+        words = [word for word in normalized_query.split() if word]
+        conditions = []
+        params = []
+
+        for word in words:
+            if len(word) <= 3:
+                conditions.append("padded_description LIKE ?")
+                params.append(f"% {word} %")
+            else:
+                conditions.append("normalized_description LIKE ?")
+                params.append(f"%{word}%")
+
+        where_clause = " AND ".join(conditions) if conditions else "1 = 1"
         cursor = conn.execute(
-            f"SELECT cpt_code, description, non_facility_price, facility_price FROM medicare_rates WHERE {conditions} ORDER BY non_facility_price DESC LIMIT ?",
-            params + [limit]
+            f"""
+            SELECT cpt_code, description, non_facility_price, facility_price
+            FROM (
+                SELECT
+                    cpt_code,
+                    description,
+                    non_facility_price,
+                    facility_price,
+                    {NORMALIZED_DESCRIPTION_SQL} AS normalized_description,
+                    ' ' || {NORMALIZED_DESCRIPTION_SQL} || ' ' AS padded_description
+                FROM medicare_rates
+            ) matched
+            WHERE {where_clause}
+            ORDER BY
+                CASE
+                    WHEN normalized_description = ? THEN 0
+                    WHEN normalized_description LIKE ? THEN 1
+                    WHEN padded_description LIKE ? THEN 2
+                    WHEN normalized_description LIKE ? THEN 3
+                    ELSE 4
+                END,
+                LENGTH(description) ASC,
+                cpt_code ASC
+            LIMIT ?
+            """,
+            params
+            + [
+                normalized_query,
+                f"{normalized_query}%",
+                f"% {normalized_query} %",
+                f"%{normalized_query}%",
+                limit,
+            ]
         )
 
     rows = cursor.fetchall()
